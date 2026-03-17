@@ -3,10 +3,8 @@ from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 import asyncio
 
 class Notifier:
-    def __init__(self):
-        self.bot = None
-        if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
-            self.bot = Bot(token=TELEGRAM_BOT_TOKEN)
+    def __init__(self, bot: Bot = None):
+        self.bot = bot
 
     async def send_message(self, text: str):
         if not self.bot:
@@ -19,8 +17,7 @@ class Notifier:
             print(f"Failed to send telegram message: {e}")
 
     async def close(self):
-        if self.bot:
-            await self.bot.session.close()
+        pass # The bot session will be closed by the main aiogram loop
 
     def format_spike_alert(self, symbol, timeframe, spike_data):
         direction = "🟢 LONG (Памп)" if spike_data['direction'] == 'up' else "🔴 SHORT (Дамп)"
