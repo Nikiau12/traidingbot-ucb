@@ -4,11 +4,46 @@ from smart_engine import Regime, MTFVerdict
 import asyncio
 
 class Notifier:
+    TRANSLATIONS = {
+        "bullish": "🟢 Бычий (Восходящий)",
+        "bearish": "🔴 Медвежий (Нисходящий)",
+        "neutral": "⚪️ Нейтральный (Флэт / Боковик)",
+        
+        "bullish_continuation": "📈 Продолжение роста",
+        "bearish_continuation": "📉 Продолжение падения",
+        "bullish_reversal": "🚀 Бычий разворот (Ловля дна)",
+        "bearish_reversal": "🩸 Медвежий разворот (Тест хая)",
+        "counter_trend_bounce": "⚠️ Опасный контр-трендовый отскок",
+        "no_trade": "🚫 Вне рынка",
+        
+        "strong": "🟢 Сильное",
+        "moderate": "🟡 Умеренное",
+        "weak": "🔴 Слабое",
+        "conflicting": "⚠️ Противоречивое",
+        "aligned": "✅ Сформирован",
+        "pending": "⏳ В процессе формирования",
+        "noisy": "🌪 Рыночный шум",
+        
+        "countertrend_to_macro": "Сделка против макро-тренда (Высокий Риск)",
+        "countertrend_context": "Локальное движение цены не поддерживает сетап",
+        "neutral or mixed macro context": "Старшие ТФ смешанные или в боковике (вероятен распил)",
+        "setup conflicts with active bias": "Сетап заходит против сильного дневного тренда",
+        "weak_confirmation": "Слабое структурное подтверждение",
+        "noisy structure": "Рваная/шумная локальная структура цены",
+        "choppy range environment": "Опасная торговля внутри узкого диапазона"
+    }
+
     def __init__(self, bot: Bot = None, active_users: set = None):
         self.bot = bot
         self.active_users = active_users if active_users is not None else set()
         if TELEGRAM_CHAT_ID: # Fallback just in case
             self.active_users.add(str(TELEGRAM_CHAT_ID))
+            
+    def _t(self, key: str) -> str:
+        if not key:
+            return ""
+        k = str(key).lower()
+        return self.TRANSLATIONS.get(k, key.replace('_', ' ').capitalize())
 
     async def send_message(self, text: str):
         if not self.bot:
@@ -61,14 +96,14 @@ class Notifier:
         if verdict:
             msg += (
                 f"🌐 <b>MTF Fusion (V11): {verdict.confidence}/100</b>\n"
-                f"🧭 Тип Сетапа: {verdict.setup_type.value.replace('_', ' ').upper()}\n"
+                f"🧭 Тип Сетапа: {self._t(verdict.setup_type.name)}\n"
             )
             if verdict.risk_flags:
                 msg += "⚠️ <b>Факторы Риска:</b>\n"
                 for risk in verdict.risk_flags:
-                    msg += f"  • {risk.replace('_', ' ').capitalize()}\n"
+                    msg += f"  • {self._t(risk)}\n"
             else:
-                msg += "✅ <b>Риски минимальны (Синхронизация ТФ)</b>\n"
+                msg += "✅ <b>Факторы Риска: Отсутствуют (Рынок чист)</b>\n"
             msg += "\n"
 
         msg += (
@@ -83,20 +118,20 @@ class Notifier:
         msg_parts = [f"📊 <b>ПОЛНЫЙ ТЕХНИЧЕСКИЙ АНАЛИЗ (MTF Fusion V11): {symbol}</b>\n"]
         
         # 1. MTF Verdict Section
-        msg_parts.append(f"🌐 <b>Макро Тренд (1W)</b>: {verdict.macro_bias.value.upper()}")
-        msg_parts.append(f"📅 <b>Активный Тренд (1D)</b>: {verdict.active_bias.value.upper()}")
-        msg_parts.append(f"🧭 <b>Тип Сетапа (4H)</b>: {verdict.setup_type.value.replace('_', ' ').upper()}")
-        msg_parts.append(f"⚖️ <b>Подтверждение (1H)</b>: {verdict.confirmation_state.value.upper()}")
-        msg_parts.append(f"⚡️ <b>Триггер (15m)</b>: {verdict.trigger_state.value.upper()}")
+        msg_parts.append(f"🌐 <b>Макро Тренд (1W)</b>: {self._t(verdict.macro_bias.name)}")
+        msg_parts.append(f"📅 <b>Активный Тренд (1D)</b>: {self._t(verdict.active_bias.name)}")
+        msg_parts.append(f"🧭 <b>Тип Сетапа (4H)</b>: {self._t(verdict.setup_type.name)}")
+        msg_parts.append(f"⚖️ <b>Подтверждение (1H)</b>: {self._t(verdict.confirmation_state.name)}")
+        msg_parts.append(f"⚡️ <b>Триггер (15m)</b>: {self._t(verdict.trigger_state.name)}")
         msg_parts.append(f"🧠 <b>Уверенность MTF</b>: {verdict.confidence}/100\n")
         
         if verdict.risk_flags:
             msg_parts.append("⚠️ <b>Факторы Риска:</b>")
             for risk in verdict.risk_flags:
-                msg_parts.append(f"  • {risk.replace('_', ' ').capitalize()}")
+                msg_parts.append(f"  • {self._t(risk)}")
             msg_parts.append("")
         else:
-            msg_parts.append("✅ <b>Риски минимачны (Синхронизация ТФ)</b>\n")
+            msg_parts.append("✅ <b>Риски минимальны (Синхронизация ТФ)</b>\n")
             
         # Nearest POI (FVG / OB) on 1h
         tf_1h = analyses.get("1h", {})
