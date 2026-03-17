@@ -24,10 +24,15 @@ async def cmd_setup(message: types.Message):
         return
     
     coin = parts[1].upper()
-    symbol = f"{coin}/USDT" if "USDT" not in coin else coin
-    
+    await handle_setup_request(message, coin)
+
+@router.message(Command("spikes"))
+async def cmd_spikes(message: types.Message):
+    await handle_spikes_request(message)
+
+async def handle_setup_request(message: types.Message, coin: str):
+    symbol = f"{coin}/USDT".upper() if "USDT" not in coin.upper() else coin.upper()
     await message.reply(f"🔍 Анализирую {symbol} по стратегии SMC...")
-    
     try:
         found = False
         for tf in ["15m", "1h", "4h"]:
@@ -47,19 +52,15 @@ async def cmd_setup(message: types.Message):
     except Exception as e:
         await message.reply(f"❌ Ошибка при анализе: {e}")
 
-@router.message(Command("spikes"))
-async def cmd_spikes(message: types.Message):
+async def handle_spikes_request(message: types.Message):
     await message.reply("🚀 Запускаю ручной сканер всплесков/пампов по Топ-250 монетам. Это займет пару минут...")
-    
     try:
         symbols = await exchange.get_top_pairs()
         spikes_found = []
-        
         for symbol in symbols:
             df = await exchange.fetch_ohlcv(symbol, "15m")
             if df.empty:
                 continue
-                
             spike = spike_scanner.scan(df)
             if spike:
                 spikes_found.append((symbol, spike))
@@ -69,7 +70,6 @@ async def cmd_spikes(message: types.Message):
             await message.reply("🤷‍♂️ Аномальных всплесков объемов прямо сейчас не замечено.")
             return
             
-        # Отправляем топ 15 всплесков
         for sym, spk in spikes_found[:15]:
             msg = notifier.format_spike_alert(sym, "15m", spk)
             await message.reply(msg, parse_mode="HTML")
@@ -77,6 +77,36 @@ async def cmd_spikes(message: types.Message):
             
     except Exception as e:
         await message.reply(f"❌ Ошибка при сканировании: {e}")
+
+from aiogram import F
+
+@router.message(F.text)
+async def handle_natural_language(message: types.Message):
+    text = message.text.lower()
+    
+    # NLP Триггеры для сетапов
+    if "дай сетап по" in text:
+        # Пытаемся вычленить монету, например "дай сетап по биткоину" -> "биткоин" -> "BTC"
+        words = text.split("дай сетап по")
+        if len(words) > 1:
+            raw_coin = words[1].strip()
+            # Простейший маппинг русских названий в тикеры
+            coin_map = {
+                "биткойн": "BTC", "биткоину": "BTC", "битку": "BTC", "btc": "BTC",
+                "эфиру": "ETH", "эфириуму": "ETH", "eth": "ETH", 
+                "солане": "SOL", "солану": "SOL", "solana": "SOL", "sol": "SOL",
+                "доги": "DOGE", "doge": "DOGE",
+                "тон": "TON", "тону": "TON"
+            }
+            coin_ticker = coin_map.get(raw_coin, raw_coin.upper()) # Если нет в словаре, пробуем как есть
+            await handle_setup_request(message, coin_ticker)
+            return
+
+    # NLP Триггеры для сканера
+    if "сканер всплесков" in text or "памп" in text or "щиткоин" in text:
+        await handle_spikes_request(message)
+        return
+
 
 async def market_scanner_loop():
     while True:
