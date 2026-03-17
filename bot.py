@@ -88,16 +88,26 @@ async def cmd_spikes(message: types.Message):
     await handle_spikes_request(message)
 
 async def handle_full_analysis_request(message: types.Message, coin: str):
-    symbol = f"{coin}/USDT".upper() if "USDT" not in coin.upper() else coin.upper()
-    await message.reply(f"🤖 Собираю данные для глубокого анализа {symbol} на 15m, 1h и 4h...")
+    symbol = await exchange.validate_symbol(coin)
+    if not symbol:
+        await message.reply(f"❌ Монета {coin} не найдена на бирже MEXC. Проверьте тикер.")
+        return
+
+    await message.reply(f"🤖 Собираю данные для глубокого анализа {symbol} (15m, 1h, 4h + Вся История 1W)...")
     try:
         analyses = {}
+        # Get standard timeframes
         for tf in ["15m", "1h", "4h"]:
             df = await exchange.fetch_ohlcv(symbol, tf)
             if df.empty:
                 continue
             analyses[tf] = smc_analyzer.analyze_tf(df)
             await asyncio.sleep(0.1)
+            
+        # Get historical All-Time timeframe (1W)
+        df_1w = await exchange.fetch_historical_data(symbol)
+        if not df_1w.empty:
+            analyses["1w"] = smc_analyzer.analyze_tf(df_1w)
         
         if not analyses:
             await message.reply("🤷‍♂️ Не удалось получить графики для анализа с MEXC.")
@@ -109,7 +119,11 @@ async def handle_full_analysis_request(message: types.Message, coin: str):
         await message.reply(f"❌ Ошибка при глубоком анализе: {e}")
 
 async def handle_setup_request(message: types.Message, coin: str):
-    symbol = f"{coin}/USDT".upper() if "USDT" not in coin.upper() else coin.upper()
+    symbol = await exchange.validate_symbol(coin)
+    if not symbol:
+        await message.reply(f"❌ Сетап: Монета {coin} не найдена на MEXC.")
+        return
+        
     await message.reply(f"🔍 Анализирую {symbol} по стратегии SMC...")
     try:
         found = False

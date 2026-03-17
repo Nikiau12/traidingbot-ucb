@@ -13,7 +13,35 @@ class ExchangeClient:
                 'defaultType': 'swap', # We want to trade Futures (Perpetual Swaps)
             }
         })
+        self._markets_loaded = False
         
+    async def load_markets_if_needed(self):
+        if not self._markets_loaded:
+            await self.exchange.load_markets()
+            self._markets_loaded = True
+
+    async def validate_symbol(self, raw_coin: str) -> str:
+        """
+        Takes a raw coin string (like 'PEPE' or 'PEPEUSDT') and tries to find a valid Perpetual Swap trading pair on MEXC.
+        Returns the formatted symbol (e.g. 'PEPE/USDT:USDT') or None if not found.
+        """
+        await self.load_markets_if_needed()
+        
+        # Normalize input
+        coin = raw_coin.upper().replace("USDT", "")
+        # MEXC futures symbols format ccxt uses: 'BTC/USDT:USDT'
+        target_symbol = f"{coin}/USDT:USDT"
+        
+        if target_symbol in self.exchange.markets:
+            return target_symbol
+            
+        # Fallback to Spot if Futures doesn't exist? For SMC bot, futures are preferred.
+        spot_symbol = f"{coin}/USDT"
+        if spot_symbol in self.exchange.markets:
+            return spot_symbol
+            
+        return None
+
     async def close(self):
         await self.exchange.close()
 
@@ -63,6 +91,27 @@ class ExchangeClient:
         except Exception as e:
             print(f"Error fetching OHLCV for {symbol} on {timeframe}: {e}")
             return pd.DataFrame() # Return empty df on error
+
+    async def fetch_historical_data(self, symbol: str) -> pd.DataFrame:
+        """
+        Fetches the maximum available historical data for '1w' (weekly) timeframe
+        to determine the all-time macro trend of the coin.
+        """
+        try:
+            # Setting limit=1000 for weekly timeframe will fetch roughly 20 years of data.
+            # since=0 forces it to start from the beginning of available history on some exchanges (if supported).
+            ohlcv = await self.exchange.fetch_ohlcv(symbol, '1w', since=0, limit=1000)
+            
+            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            
+            for col in ['open', 'high', 'low', 'close', 'volume']:
+                df[col] = df[col].astype(float)
+                
+            return df
+        except Exception as e:
+            print(f"Error fetching historical data for {symbol}: {e}")
+            return pd.DataFrame()
 
     async def create_market_order(self, symbol: str, side: str, amount: float, params: dict = None):
         """

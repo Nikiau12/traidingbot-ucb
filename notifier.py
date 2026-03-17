@@ -56,6 +56,18 @@ class Notifier:
     def format_full_analysis(self, symbol, analyses):
         msg_parts = [f"📊 <b>ПОЛНЫЙ ТЕХНИЧЕСКИЙ АНАЛИЗ SMC: {symbol}</b>\n"]
         
+        # Determine all-time trend from 1w
+        tf_1w = analyses.get("1w", {})
+        alltime_trend = "Пока неизвестно (мало исторических данных)"
+        if 'structure' in tf_1w and tf_1w['structure']:
+            last_1w_struct = tf_1w['structure'][-1]
+            if last_1w_struct['BOS'] == 1 or last_1w_struct['CHOCH'] == 1:
+                alltime_trend = "🟢 Глобальный Бычий (Price Discovery / Рост)"
+            elif last_1w_struct['BOS'] == -1 or last_1w_struct['CHOCH'] == -1:
+                alltime_trend = "🔴 Глобальный Медвежий (Затяжное падение)"
+        
+        msg_parts.append(f"<b>Вся История (1W)</b>: {alltime_trend}")
+        
         # Determine overall trend from 4h
         tf_4h = analyses.get("4h", {})
         macro_trend = "⚪️ Нейтральный (в боковике)"
@@ -118,4 +130,29 @@ class Notifier:
         else:
             msg_parts.append("На рынке смешанная картина (боковик или консолидация). Слишком мало данных для уверенного сетапа. Торговля не рекомендуется до выхода из торгового диапазона.")
             
+        # Explicit Scenarios
+        msg_parts.append("\n📝 <b>КОНКРЕТНЫЕ СЦЕНАРИИ ТОРГОВЛИ:</b>")
+        
+        # Long Scenario logic based on 1h POIs
+        long_poi = "сильную зону поддержки"
+        if 'fvg' in tf_1h and any(f['FVG'] == 1 for f in tf_1h['fvg']):
+            f = [f for f in tf_1h['fvg'] if f['FVG'] == 1][-1]
+            long_poi = f"перекрытие Бычьего имбаланса ({f.get('Bottom', 0):.4f} - {f.get('Top', 0):.4f})"
+        elif 'order_blocks' in tf_1h and any(ob['OB'] == 1 for ob in tf_1h['order_blocks']):
+            ob = [ob for ob in tf_1h['order_blocks'] if ob['OB'] == 1][-1]
+            long_poi = f"тест Бычьего Ордерблока ({ob.get('Bottom', 0):.4f} - {ob.get('Top', 0):.4f})"
+            
+        msg_parts.append(f"📈 <b>Вариант ЛОНГа:</b> Дождаться спуска в {long_poi}. Если на 15-минутном графике там происходит локальный слом структуры вверх (CHoCH), открываем LONG со стопом за последний минимум. Тейк-профит — на обновлении ближайшего максимума.")
+
+        # Short Scenario logic
+        short_poi = "зону сильного сопротивления"
+        if 'fvg' in tf_1h and any(f['FVG'] == -1 for f in tf_1h['fvg']):
+            f = [f for f in tf_1h['fvg'] if f['FVG'] == -1][-1]
+            short_poi = f"Медвежий имбаланс (FVG) между {f.get('Bottom', 0):.4f} и {f.get('Top', 0):.4f}"
+        elif 'order_blocks' in tf_1h and any(ob['OB'] == -1 for ob in tf_1h['order_blocks']):
+            ob = [ob for ob in tf_1h['order_blocks'] if ob['OB'] == -1][-1]
+            short_poi = f"Медвежий Ордерблок (OB) на отметке {ob.get('Bottom', 0):.4f} - {ob.get('Top', 0):.4f}"
+            
+        msg_parts.append(f"📉 <b>Вариант ШОРТа:</b> Если цена подскакивает в {short_poi}, и мы видим резкий слом (CHoCH) медвежьего характера на 15m, тогда открываем SHORT со стопом за этот новый максимум. Иначе — риск пробития зоны.")
+
         return "\n".join(msg_parts)
