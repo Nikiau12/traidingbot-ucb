@@ -30,6 +30,27 @@ async def cmd_setup(message: types.Message):
 async def cmd_spikes(message: types.Message):
     await handle_spikes_request(message)
 
+async def handle_full_analysis_request(message: types.Message, coin: str):
+    symbol = f"{coin}/USDT".upper() if "USDT" not in coin.upper() else coin.upper()
+    await message.reply(f"🤖 Собираю данные для глубокого анализа {symbol} на 15m, 1h и 4h...")
+    try:
+        analyses = {}
+        for tf in ["15m", "1h", "4h"]:
+            df = await exchange.fetch_ohlcv(symbol, tf)
+            if df.empty:
+                continue
+            analyses[tf] = smc_analyzer.analyze_tf(df)
+            await asyncio.sleep(0.1)
+        
+        if not analyses:
+            await message.reply("🤷‍♂️ Не удалось получить графики для анализа с MEXC.")
+            return
+            
+        msg = notifier.format_full_analysis(symbol, analyses)
+        await message.reply(msg, parse_mode="HTML")
+    except Exception as e:
+        await message.reply(f"❌ Ошибка при глубоком анализе: {e}")
+
 async def handle_setup_request(message: types.Message, coin: str):
     symbol = f"{coin}/USDT".upper() if "USDT" not in coin.upper() else coin.upper()
     await message.reply(f"🔍 Анализирую {symbol} по стратегии SMC...")
@@ -100,6 +121,22 @@ async def handle_natural_language(message: types.Message):
             }
             coin_ticker = coin_map.get(raw_coin, raw_coin.upper()) # Если нет в словаре, пробуем как есть
             await handle_setup_request(message, coin_ticker)
+            return
+
+    # NLP Триггеры для полного анализа ("анализ монеты")
+    if "анализ монеты" in text:
+        words = text.split("анализ монеты")
+        if len(words) > 1:
+            raw_coin = words[1].strip()
+            coin_map = {
+                "биткойн": "BTC", "биткоину": "BTC", "битку": "BTC", "btc": "BTC", "биткоин": "BTC",
+                "эфиру": "ETH", "эфириуму": "ETH", "eth": "ETH", "эфир": "ETH",
+                "солане": "SOL", "солану": "SOL", "solana": "SOL", "sol": "SOL",
+                "доги": "DOGE", "doge": "DOGE",
+                "тон": "TON", "тону": "TON"
+            }
+            coin_ticker = coin_map.get(raw_coin, raw_coin.upper())
+            await handle_full_analysis_request(message, coin_ticker)
             return
 
     # NLP Триггеры для сканера

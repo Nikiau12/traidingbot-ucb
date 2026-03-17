@@ -44,3 +44,65 @@ class Notifier:
             f"⚖️ Risk:Reward: 1:{setup_data['rr']}"
         )
         return msg
+
+    def format_full_analysis(self, symbol, analyses):
+        msg_parts = [f"📊 <b>ПОЛНЫЙ ТЕХНИЧЕСКИЙ АНАЛИЗ SMC: {symbol}</b>\n"]
+        
+        # Determine overall trend from 4h
+        tf_4h = analyses.get("4h", {})
+        macro_trend = "⚪️ Нейтральный (в боковике)"
+        if 'structure' in tf_4h and tf_4h['structure']:
+            last_4h_struct = tf_4h['structure'][-1]
+            if last_4h_struct['BOS'] == 1 or last_4h_struct['CHOCH'] == 1:
+                macro_trend = "🟢 Восходящий (Бычий)"
+            elif last_4h_struct['BOS'] == -1 or last_4h_struct['CHOCH'] == -1:
+                macro_trend = "🔴 Нисходящий (Медвежий)"
+        
+        msg_parts.append(f"<b>Макро Тренд (4h)</b>: {macro_trend}")
+        
+        # Look at local structure 15m
+        tf_15m = analyses.get("15m", {})
+        micro_trend = "⚪️ Нейтральный"
+        if 'structure' in tf_15m and tf_15m['structure']:
+            last_15m_struct = tf_15m['structure'][-1]
+            if last_15m_struct['BOS'] == 1 or last_15m_struct['CHOCH'] == 1:
+                micro_trend = "🟢 Памп / Локально растем"
+            elif last_15m_struct['BOS'] == -1 or last_15m_struct['CHOCH'] == -1:
+                micro_trend = "🔴 Дамп / Локально падаем"
+                
+        msg_parts.append(f"<b>Микро Тренд (15m)</b>: {micro_trend}\n")
+        
+        # Nearest POI (FVG / OB) on 1h
+        tf_1h = analyses.get("1h", {})
+        msg_parts.append("🔎 <b>Ближайшие зоны интереса (1h):</b>")
+        if 'fvg' in tf_1h and tf_1h['fvg']:
+            last_fvg = tf_1h['fvg'][-1]
+            fvg_type = "Бычий" if last_fvg['FVG'] == 1 else "Медвежий"
+            msg_parts.append(f"• Свежий {fvg_type} имбаланс (FVG): {last_fvg['Bottom']:.4f} - {last_fvg['Top']:.4f}")
+        else:
+            msg_parts.append("• Явных имбалансов поблизости нет.")
+            
+        if 'order_blocks' in tf_1h and tf_1h['order_blocks']:
+            last_ob = tf_1h['order_blocks'][-1]
+            ob_type = "Бычий" if last_ob['OB'] == 1 else "Медвежий"
+            msg_parts.append(f"• Актуальный {ob_type} Ордерблок (OB): {last_ob['Bottom']:.4f} - {last_ob['Top']:.4f}")
+            
+        # Liquidity on 15m
+        if 'liquidity' in tf_15m and tf_15m['liquidity']:
+            msg_parts.append("\n💧 <b>Зоны ликвидности (15m):</b>")
+            for liq in tf_15m['liquidity'][-2:]:
+                liq_type = "Buy-side (Сверху)" if liq['Liquidity'] == 1 else "Sell-side (Снизу)"
+                msg_parts.append(f"• {liq_type} скопление стопов на уровне: {liq['Level']:.4f}")
+        
+        # AI Verdict
+        msg_parts.append("\n💡 <b>Мнение Бота:</b>")
+        if macro_trend == "🟢 Восходящий (Бычий)" and micro_trend == "🟢 Памп / Локально растем":
+            msg_parts.append("Тренды синхронизированы в лонг. Инструмент очень сильный. Рекомендуется искать точки входа в покупку (LONG) от ближайших бычьих ордерблоков или перекрытий FVG на младших таймфреймах.")
+        elif macro_trend == "🔴 Нисходящий (Медвежий)" and micro_trend == "🔴 Дамп / Локально падаем":
+            msg_parts.append("Рынок тотально падает. Безопаснее всего искать шорт-позиции (SHORT) после небольших откатов в медвежьи имбалансы (FVG).")
+        elif macro_trend != micro_trend and (macro_trend != "⚪️ Нейтральный (в боковике)"):
+            msg_parts.append("Локальный тренд прямо сейчас идет против глобального. Вероятно, происходит снятие ликвидности или глубокая коррекция. Рекомендуется воздержаться от сделок до тех пор, пока на 15m не произойдет слом (CHoCH) обратно по глобальному тренду.")
+        else:
+            msg_parts.append("На рынке смешанная картина (боковик или консолидация). Слишком мало данных для уверенного сетапа. Торговля не рекомендуется до выхода из торгового диапазона.")
+            
+        return "\n".join(msg_parts)
