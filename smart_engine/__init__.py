@@ -6,7 +6,7 @@ from .models import (
 from .coin_config import get_coin_profile
 from .regime_classifier import RegimeClassifier
 from .structure_engine import StructureEngine
-from .momentum_rsi import MomentumRSI
+from .momentum_rsi import MomentumEngine
 from .confidence_scorer import ConfidenceScorer
 from .mtf_fusion import MTFFusionEngine
 
@@ -34,7 +34,7 @@ class SmartContextEngine:
     def __init__(self):
         self.regime_classifier = RegimeClassifier()
         self.structure_engine = StructureEngine()
-        self.momentum_engine = MomentumRSI()
+        self.momentum_engine = MomentumEngine()
         self.scorer = ConfidenceScorer()
 
     def add_context_indicators(self, df: pd.DataFrame):
