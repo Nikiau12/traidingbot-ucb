@@ -28,24 +28,25 @@ class SMCAnalyzer:
 
             # Fair Value Gaps (FVG)
             fvg = smc.fvg(df_smc)
-            # Find the most recent active FVG
+            fvg = fvg.dropna(subset=['Top', 'Bottom'])  # Drop NaNs
             recent_fvgs = fvg[fvg['FVG'] != 0].tail(3)
             results['fvg'] = recent_fvgs.to_dict('records')
             
             # Market Structure (BOS, CHoCH)
-            # bos_choch requires swing_highs_lows as the second argument
             bos_choch = smc.bos_choch(df_smc, swing_highs)
+            bos_choch = bos_choch.dropna(subset=['Level'])  # Drop NaNs
             recent_structure = bos_choch[(bos_choch['BOS'] != 0) | (bos_choch['CHOCH'] != 0)].tail(3)
             results['structure'] = recent_structure.to_dict('records')
             
             # Order Blocks
-            # ob also typically requires swing_highs_lows
             ob = smc.ob(df_smc, swing_highs)
+            ob = ob.dropna(subset=['Top', 'Bottom'])  # Drop NaNs
             recent_obs = ob[ob['OB'] != 0].tail(3)
             results['order_blocks'] = recent_obs.to_dict('records')
             
             # Liquidity
             liquidity = smc.liquidity(df_smc, swing_highs)
+            liquidity = liquidity.dropna(subset=['Level'])  # Drop NaNs
             recent_liq = liquidity[liquidity['Liquidity'] != 0].tail(3)
             results['liquidity'] = recent_liq.to_dict('records')
             

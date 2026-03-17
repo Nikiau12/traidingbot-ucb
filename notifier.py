@@ -86,21 +86,26 @@ class Notifier:
         if 'fvg' in tf_1h and tf_1h['fvg']:
             last_fvg = tf_1h['fvg'][-1]
             fvg_type = "Бычий" if last_fvg['FVG'] == 1 else "Медвежий"
-            msg_parts.append(f"• Свежий {fvg_type} имбаланс (FVG): {last_fvg['Bottom']:.4f} - {last_fvg['Top']:.4f}")
+            top = last_fvg.get('Top', 0)
+            bottom = last_fvg.get('Bottom', 0)
+            msg_parts.append(f"• Свежий {fvg_type} имбаланс (FVG): {bottom:.4f} - {top:.4f}")
         else:
             msg_parts.append("• Явных имбалансов поблизости нет.")
             
         if 'order_blocks' in tf_1h and tf_1h['order_blocks']:
             last_ob = tf_1h['order_blocks'][-1]
             ob_type = "Бычий" if last_ob['OB'] == 1 else "Медвежий"
-            msg_parts.append(f"• Актуальный {ob_type} Ордерблок (OB): {last_ob['Bottom']:.4f} - {last_ob['Top']:.4f}")
+            top = last_ob.get('Top', 0)
+            bottom = last_ob.get('Bottom', 0)
+            msg_parts.append(f"• Актуальный {ob_type} Ордерблок (OB): {bottom:.4f} - {top:.4f}")
             
         # Liquidity on 15m
         if 'liquidity' in tf_15m and tf_15m['liquidity']:
             msg_parts.append("\n💧 <b>Зоны ликвидности (15m):</b>")
             for liq in tf_15m['liquidity'][-2:]:
                 liq_type = "Buy-side (Сверху)" if liq['Liquidity'] == 1 else "Sell-side (Снизу)"
-                msg_parts.append(f"• {liq_type} скопление стопов на уровне: {liq['Level']:.4f}")
+                lvl = liq.get('Level', 0)
+                msg_parts.append(f"• {liq_type} скопление стопов на уровне: {lvl:.4f}")
         
         # AI Verdict
         msg_parts.append("\n💡 <b>Мнение Бота:</b>")
