@@ -92,7 +92,7 @@ class ExchangeClient:
             print(f"Error fetching OHLCV for {symbol} on {timeframe}: {e}")
             return pd.DataFrame() # Return empty df on error
 
-    async def fetch_historical_data(self, symbol: str) -> pd.DataFrame:
+    async def fetch_historical_data(self, symbol: str, timeframe: str = '1w') -> pd.DataFrame:
         """
         Fetches the maximum available historical data for '1w' (weekly) timeframe
         to determine the all-time macro trend of the coin.
@@ -100,7 +100,7 @@ class ExchangeClient:
         try:
             # Setting limit=1000 for weekly timeframe will fetch roughly 20 years of data.
             # since=0 forces it to start from the beginning of available history on some exchanges (if supported).
-            ohlcv = await self.exchange.fetch_ohlcv(symbol, '1w', since=0, limit=1000)
+            ohlcv = await self.exchange.fetch_ohlcv(symbol, timeframe, since=0, limit=1000)
             
             df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
