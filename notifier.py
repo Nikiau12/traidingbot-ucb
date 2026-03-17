@@ -3,18 +3,26 @@ from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 import asyncio
 
 class Notifier:
-    def __init__(self, bot: Bot = None):
+    def __init__(self, bot: Bot = None, active_users: set = None):
         self.bot = bot
+        self.active_users = active_users if active_users is not None else set()
+        if TELEGRAM_CHAT_ID: # Fallback just in case
+            self.active_users.add(str(TELEGRAM_CHAT_ID))
 
     async def send_message(self, text: str):
         if not self.bot:
             print(f"[Notifier - console only] {text}")
             return
 
-        try:
-            await self.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text, parse_mode="HTML")
-        except Exception as e:
-            print(f"Failed to send telegram message: {e}")
+        if not self.active_users:
+            print(f"[Notifier - no active users] {text}")
+            return
+
+        for chat_id in self.active_users:
+            try:
+                await self.bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
+            except Exception as e:
+                print(f"Failed to send telegram message to {chat_id}: {e}")
 
     async def close(self):
         pass # The bot session will be closed by the main aiogram loop

@@ -1,17 +1,67 @@
 import asyncio
+import json
+import os
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 from exchange_client import ExchangeClient
 from smc_analyzer import SMCAnalyzer
 from spike_scanner import SpikeScanner
 from notifier import Notifier
-from config import TELEGRAM_BOT_TOKEN, TIMEFRAMES, TOP_COINS_LIMIT, CORE_PAIRS
+from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TIMEFRAMES, TOP_COINS_LIMIT, CORE_PAIRS
 
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
 router = Router()
 
+USERS_FILE = "users.json"
+
+def load_users():
+    if os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, 'r') as f:
+                return set(json.load(f))
+        except:
+            pass
+    # Если файла нет, инициализируем владельцем из .env
+    default_users = set()
+    if TELEGRAM_CHAT_ID:
+        default_users.add(str(TELEGRAM_CHAT_ID))
+    return default_users
+
+def save_user(chat_id: str):
+    users = load_users()
+    if chat_id not in users:
+        users.add(chat_id)
+        with open(USERS_FILE, 'w') as f:
+            json.dump(list(users), f)
+        return True
+    return False
+
+active_users = load_users()
+
 exchange = ExchangeClient()
+smc_analyzer = SMCAnalyzer()
+spike_scanner = SpikeScanner()
+# Передаем set пользователей в Notifier
+notifier = Notifier(bot_instance, active_users)
+
+@router.message(Command("start"))
+async def cmd_start(message: types.Message):
+    chat_id = str(message.chat.id)
+    is_new = save_user(chat_id)
+    if is_new:
+        notifier.active_users.add(chat_id)
+        print(f"Новый пользователь зарегистрирован: {chat_id}")
+    
+    welcome_text = (
+        "👋 <b>Добро пожаловать в Smart Money Trading Bot!</b>\n\n"
+        "Я автоматически сканирую крипторынок 24/7 и присылаю сюда уведомления о пампах и сетапах по стратегии SMC.\n\n"
+        "<b>Доступные команды:</b>\n"
+        "🔸 <code>/setup BTC</code> — Быстрый поиск сетапа на покупку/продажу\n"
+        "🔸 <code>/spikes</code> — Ручной сканер аномальных объемов по 250 монетам\n"
+        "💬 <i>Напиши мне «Анализ монеты SOL», и я сделаю глубокий разбор тренда!</i>"
+    )
+    await message.reply(welcome_text, parse_mode="HTML")
 smc_analyzer = SMCAnalyzer()
 spike_scanner = SpikeScanner()
 notifier = Notifier(bot_instance)
