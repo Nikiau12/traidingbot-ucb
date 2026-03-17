@@ -1,5 +1,6 @@
 from aiogram import Bot
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from smart_engine import Regime
 import asyncio
 
 class Notifier:
@@ -39,13 +40,25 @@ class Notifier:
         )
         return msg
 
-    def format_smc_setup(self, symbol, timeframe, setup_data):
+    def format_smc_setup(self, symbol, timeframe, setup_data, context_score=None):
         direction_icon = "🟢 LONG" if setup_data['type'] == 'LONG' else "🔴 SHORT"
         msg = (
             f"🎯 <b>SMC СЕТАП: {symbol}</b>\n"
             f"📈 Направление: {direction_icon}\n"
             f"⏱ Таймфрейм: {timeframe}\n"
             f"🧠 Паттерн: {setup_data['reason']}\n\n"
+        )
+        
+        if context_score:
+            msg += (
+                f"🧠 <b>Умный Анализ (V9): {context_score.confidence}/100</b>\n"
+                f"📊 Режим: {context_score.regime.value.upper()} | Фаза: {context_score.phase.value.upper()}\n"
+            )
+            for reason in context_score.reasons:
+                msg += f"  • {reason}\n"
+            msg += "\n"
+
+        msg += (
             f"🎯 <b>Точка входа (Entry)</b>: {setup_data['entry']:.5f}\n"
             f"🛑 <b>Стоп-Лосс (SL)</b>: {setup_data['stop_loss']:.5f}\n"
             f"✅ <b>Тейк-Профит (TP)</b>: {setup_data['take_profit']:.5f}\n"
@@ -53,43 +66,33 @@ class Notifier:
         )
         return msg
 
-    def format_full_analysis(self, symbol, analyses):
-        msg_parts = [f"📊 <b>ПОЛНЫЙ ТЕХНИЧЕСКИЙ АНАЛИЗ SMC: {symbol}</b>\n"]
+    def format_full_analysis(self, symbol, analyses, regimes=None):
+        msg_parts = [f"📊 <b>ПОЛНЫЙ ТЕХНИЧЕСКИЙ АНАЛИЗ SMC + V10: {symbol}</b>\n"]
         
-        # Determine all-time trend from 1w
-        tf_1w = analyses.get("1w", {})
-        alltime_trend = "Пока неизвестно (мало исторических данных)"
-        if 'structure' in tf_1w and tf_1w['structure']:
-            last_1w_struct = tf_1w['structure'][-1]
-            if last_1w_struct['BOS'] == 1 or last_1w_struct['CHOCH'] == 1:
-                alltime_trend = "🟢 Глобальный Бычий (Price Discovery / Рост)"
-            elif last_1w_struct['BOS'] == -1 or last_1w_struct['CHOCH'] == -1:
-                alltime_trend = "🔴 Глобальный Медвежий (Затяжное падение)"
+        # Helper to convert Regime enum to nice Telegram String
+        def regime_to_str(regime_enum, uptrend_lbl, downtrend_lbl):
+            if not regime_enum:
+                return "⚪️ Неизвестно (нет данных)"
+            if regime_enum == Regime.UPTREND:
+                return f"🟢 {uptrend_lbl} (Восходящий)"
+            elif regime_enum == Regime.DOWNTREND:
+                return f"🔴 {downtrend_lbl} (Нисходящий)"
+            elif regime_enum == Regime.EXPANSION:
+                return "🔥 Сильное расширение (Волатильность)"
+            elif regime_enum == Regime.COMPRESSION:
+                return "💤 Сужение диапазона (Ожидание импульса)"
+            else:
+                return "⚪️ Нейтральный (Боковик / Флэт)"
+
+        # 1. Global / Macro Regimes using Smart Engine
+        alltime_trend = regime_to_str(regimes.get("1w"), "Глобальный Бычий", "Глобальный Медвежий") if regimes else "Неизвестно"
+        daily_trend = regime_to_str(regimes.get("1d"), "Бычий Тренд", "Медвежий Тренд") if regimes else "Неизвестно"
+        macro_trend = regime_to_str(regimes.get("4h"), "Локально-Бычий", "Локально-Медвежий") if regimes else "Неизвестно"
+        micro_trend = regime_to_str(regimes.get("15m"), "Памп / Локально растем", "Дамп / Локально падаем") if regimes else "Неизвестно"
         
         msg_parts.append(f"<b>Вся История (1W)</b>: {alltime_trend}")
-        
-        # Determine overall trend from 4h
-        tf_4h = analyses.get("4h", {})
-        macro_trend = "⚪️ Нейтральный (в боковике)"
-        if 'structure' in tf_4h and tf_4h['structure']:
-            last_4h_struct = tf_4h['structure'][-1]
-            if last_4h_struct['BOS'] == 1 or last_4h_struct['CHOCH'] == 1:
-                macro_trend = "🟢 Восходящий (Бычий)"
-            elif last_4h_struct['BOS'] == -1 or last_4h_struct['CHOCH'] == -1:
-                macro_trend = "🔴 Нисходящий (Медвежий)"
-        
-        msg_parts.append(f"<b>Макро Тренд (4h)</b>: {macro_trend}")
-        
-        # Look at local structure 15m
-        tf_15m = analyses.get("15m", {})
-        micro_trend = "⚪️ Нейтральный"
-        if 'structure' in tf_15m and tf_15m['structure']:
-            last_15m_struct = tf_15m['structure'][-1]
-            if last_15m_struct['BOS'] == 1 or last_15m_struct['CHOCH'] == 1:
-                micro_trend = "🟢 Памп / Локально растем"
-            elif last_15m_struct['BOS'] == -1 or last_15m_struct['CHOCH'] == -1:
-                micro_trend = "🔴 Дамп / Локально падаем"
-                
+        msg_parts.append(f"<b>Дневной Макро (1D)</b>: {daily_trend}")
+        msg_parts.append(f"<b>Среднесрок (4h)</b>: {macro_trend}")
         msg_parts.append(f"<b>Микро Тренд (15m)</b>: {micro_trend}\n")
         
         # Nearest POI (FVG / OB) on 1h
@@ -112,6 +115,7 @@ class Notifier:
             msg_parts.append(f"• Актуальный {ob_type} Ордерблок (OB): {bottom:.4f} - {top:.4f}")
             
         # Liquidity on 15m
+        tf_15m = analyses.get("15m", {})
         if 'liquidity' in tf_15m and tf_15m['liquidity']:
             msg_parts.append("\n💧 <b>Зоны ликвидности (15m):</b>")
             for liq in tf_15m['liquidity'][-2:]:
@@ -119,16 +123,27 @@ class Notifier:
                 lvl = liq.get('Level', 0)
                 msg_parts.append(f"• {liq_type} скопление стопов на уровне: {lvl:.4f}")
         
-        # AI Verdict
+        # AI Verdict Context Engine V10 Logic
         msg_parts.append("\n💡 <b>Мнение Бота:</b>")
-        if macro_trend == "🟢 Восходящий (Бычий)" and micro_trend == "🟢 Памп / Локально растем":
-            msg_parts.append("Тренды синхронизированы в лонг. Инструмент очень сильный. Рекомендуется искать точки входа в покупку (LONG) от ближайших бычьих ордерблоков или перекрытий FVG на младших таймфреймах.")
-        elif macro_trend == "🔴 Нисходящий (Медвежий)" and micro_trend == "🔴 Дамп / Локально падаем":
-            msg_parts.append("Рынок тотально падает. Безопаснее всего искать шорт-позиции (SHORT) после небольших откатов в медвежьи имбалансы (FVG).")
-        elif macro_trend != micro_trend and (macro_trend != "⚪️ Нейтральный (в боковике)"):
-            msg_parts.append("Локальный тренд прямо сейчас идет против глобального. Вероятно, происходит снятие ликвидности или глубокая коррекция. Рекомендуется воздержаться от сделок до тех пор, пока на 15m не произойдет слом (CHoCH) обратно по глобальному тренду.")
+        
+        is_bullish = ("🟢" in daily_trend) and ("🟢" in macro_trend)
+        is_bearish = ("🔴" in daily_trend) and ("🔴" in macro_trend)
+        is_flat = ("⚪️" in daily_trend) or ("💤" in daily_trend)
+        
+        if is_bullish:
+            if "🔴" in micro_trend:
+                msg_parts.append("Инструмент находится в сильном глобальном и дневном восходящем тренде. Прямо сейчас идет локальный откат (15m). Идеальное время присматриваться к LONG-сетапам в зонах интереса (1h).")
+            else:
+                msg_parts.append("Тренды синхронизированы в лонг (от 1D до 15m). Рынок летит вверх. Рекомендуется искать точки входа в покупку (LONG) от ближайших бычьих ордерблоков.")
+        elif is_bearish:
+            if "🟢" in micro_trend:
+                msg_parts.append("Инструмент в тяжелом даунтренде на старших ТФ (1D, 4H), но прямо сейчас есть локальный бычий отскок (15m). Не попадайтесь в ловушку, ищите SHORT от свежих медвежьих имбалансов.")
+            else:
+                msg_parts.append("Рынок тотально падает по всем фронтам. Безопаснее всего искать шорт-позиции (SHORT) после небольших откатов в зоны сопротивления (OB/FVG).")
+        elif is_flat:
+             msg_parts.append("Дневка находится во флэте/боковике. Очевидного направленного движения нет. Торговля внутри боковика опасна, лучше дождаться пробоя диапазона или торговать скальпинг-сетапы на 15m.")
         else:
-            msg_parts.append("На рынке смешанная картина (боковик или консолидация). Слишком мало данных для уверенного сетапа. Торговля не рекомендуется до выхода из торгового диапазона.")
+            msg_parts.append("На рынке смешанная картина (например, Дневка растет, а 4h уже сломались вниз). Ситуация нестабильна. Рекомендуется воздержаться от сделок до синхронизации старших таймфреймов.")
             
         # Explicit Scenarios
         msg_parts.append("\n📝 <b>КОНКРЕТНЫЕ СЦЕНАРИИ ТОРГОВЛИ:</b>")

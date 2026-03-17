@@ -8,6 +8,7 @@ from exchange_client import ExchangeClient
 from smc_analyzer import SMCAnalyzer
 from spike_scanner import SpikeScanner
 from notifier import Notifier
+from smart_engine import SmartContextEngine, SignalType
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TIMEFRAMES, TOP_COINS_LIMIT, CORE_PAIRS
 
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
@@ -43,6 +44,7 @@ active_users = load_users()
 exchange = ExchangeClient()
 smc_analyzer = SMCAnalyzer()
 spike_scanner = SpikeScanner()
+smart_engine = SmartContextEngine()
 # Передаем set пользователей в Notifier
 notifier = Notifier(bot_instance, active_users)
 
@@ -93,24 +95,29 @@ async def handle_full_analysis_request(message: types.Message, coin: str):
     if not symbol:
         await message.reply(f"❌ Монета {coin} не найдена на бирже MEXC. Проверьте тикер.")
         return
-
-    await message.reply(f"🤖 Собираю данные для глубокого анализа {symbol} (15m, 1h, 4h + Вся История 1W)...")
+    
+    await message.reply(f"🤖 Собираю данные для глубокого анализа {symbol}\n(15m, 1h, 4h, 1d + Вся История 1w)...")
     try:
-        analyses = {}
-        # Get standard timeframes
-        for tf in ["15m", "1h", "4h"]:
-            df = await exchange.fetch_ohlcv(symbol, tf)
-            if df.empty:
-                continue
-            analyses[tf] = smc_analyzer.analyze_tf(df)
-            await asyncio.sleep(0.1)
-            
-        # Get historical All-Time timeframe (1W)
-        df_1w = await exchange.fetch_historical_data(symbol)
-        if not df_1w.empty:
-            analyses["1w"] = smc_analyzer.analyze_tf(df_1w)
+        analyses = {"1w": {}, "1d": {}, "4h": {}, "1h": {}, "15m": {}}
+        regimes = {}  # Store the smart regime for each TF
         
-        if not analyses:
+        for tf in ["1w", "1d", "4h", "1h", "15m"]:
+            if tf == "1w":
+                df = await exchange.fetch_historical_data(symbol, "1w")
+            else:
+                df = await exchange.fetch_ohlcv(symbol, tf)
+                
+            if not df.empty:
+                analyses[tf] = smc_analyzer.analyze_tf(df)
+                
+                # --- V10 Smart Regime Context ---
+                smart_engine.add_context_indicators(df)
+                regimes[tf] = smart_engine.regime_classifier.classify(df)
+            else:
+                regimes[tf] = None
+            await asyncio.sleep(0.1) # Small delay to prevent rate limits
+
+        if not any(analyses.values()): # Check if any analysis was successful
             await message.reply("🤷‍♂️ Не удалось получить графики для анализа с MEXC.")
             return
             
@@ -135,9 +142,12 @@ async def handle_setup_request(message: types.Message, coin: str):
             smc_results = smc_analyzer.analyze_tf(df)
             setup = smc_analyzer.find_setup(smc_results)
             if setup:
-                msg = notifier.format_smc_setup(symbol, tf, setup)
-                await message.reply(msg, parse_mode="HTML")
-                found = True
+                # Фильтруем сетап через Smart Context Engine
+                score = smart_engine.analyze_context(df, symbol, setup['type'])
+                if score.signal != SignalType.NO_TRADE:
+                    msg = notifier.format_smc_setup(symbol, tf, setup, score)
+                    await message.reply(msg, parse_mode="HTML")
+                    found = True
         
         if not found:
             await message.reply(f"🤷‍♂️ В данный момент нет свежих сетапов SMC по {symbol} на таймфреймах 15m, 1h, 4h.")
@@ -259,11 +269,18 @@ async def market_scanner_loop():
                         setup = smc_analyzer.find_setup(smc_results)
                         
                         if setup:
+                            # Прогоняем сетап через Умный Движок (V9)
+                            score = smart_engine.analyze_context(df, symbol, setup['type'])
+                            
+                            # Блокируем мусорные сигналы (NO_TRADE)
+                            if score.signal == SignalType.NO_TRADE:
+                                continue
+                                
                             setup_key = f"{symbol}_{tf}_{setup['type']}"
                             last_time = last_setup_alert.get(setup_key, 0)
                             
                             if current_time - last_time > SETUP_COOLDOWN:
-                                msg = notifier.format_smc_setup(symbol, tf, setup)
+                                msg = notifier.format_smc_setup(symbol, tf, setup, score)
                                 await notifier.send_message(msg)
                                 last_setup_alert[setup_key] = current_time # Обновляем кэш
                                 await asyncio.sleep(0.1)
