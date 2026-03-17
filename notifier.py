@@ -1,6 +1,6 @@
 from aiogram import Bot
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
-from smart_engine import Regime
+from smart_engine import Regime, MTFVerdict
 import asyncio
 
 class Notifier:
@@ -40,7 +40,7 @@ class Notifier:
         )
         return msg
 
-    def format_smc_setup(self, symbol, timeframe, setup_data, context_score=None):
+    def format_smc_setup(self, symbol, timeframe, setup_data, context_score=None, verdict: MTFVerdict=None):
         direction_icon = "🟢 LONG" if setup_data['type'] == 'LONG' else "🔴 SHORT"
         msg = (
             f"🎯 <b>SMC СЕТАП: {symbol}</b>\n"
@@ -58,6 +58,19 @@ class Notifier:
                 msg += f"  • {reason}\n"
             msg += "\n"
 
+        if verdict:
+            msg += (
+                f"🌐 <b>MTF Fusion (V11): {verdict.confidence}/100</b>\n"
+                f"🧭 Тип Сетапа: {verdict.setup_type.value.replace('_', ' ').upper()}\n"
+            )
+            if verdict.risk_flags:
+                msg += "⚠️ <b>Факторы Риска:</b>\n"
+                for risk in verdict.risk_flags:
+                    msg += f"  • {risk.replace('_', ' ').capitalize()}\n"
+            else:
+                msg += "✅ <b>Риски минимальны (Синхронизация ТФ)</b>\n"
+            msg += "\n"
+
         msg += (
             f"🎯 <b>Точка входа (Entry)</b>: {setup_data['entry']:.5f}\n"
             f"🛑 <b>Стоп-Лосс (SL)</b>: {setup_data['stop_loss']:.5f}\n"
@@ -66,35 +79,25 @@ class Notifier:
         )
         return msg
 
-    def format_full_analysis(self, symbol, analyses, regimes=None):
-        msg_parts = [f"📊 <b>ПОЛНЫЙ ТЕХНИЧЕСКИЙ АНАЛИЗ SMC + V10: {symbol}</b>\n"]
+    def format_full_analysis(self, symbol, analyses, verdict: MTFVerdict):
+        msg_parts = [f"📊 <b>ПОЛНЫЙ ТЕХНИЧЕСКИЙ АНАЛИЗ (MTF Fusion V11): {symbol}</b>\n"]
         
-        # Helper to convert Regime enum to nice Telegram String
-        def regime_to_str(regime_enum, uptrend_lbl, downtrend_lbl):
-            if not regime_enum:
-                return "⚪️ Неизвестно (нет данных)"
-            if regime_enum == Regime.UPTREND:
-                return f"🟢 {uptrend_lbl} (Восходящий)"
-            elif regime_enum == Regime.DOWNTREND:
-                return f"🔴 {downtrend_lbl} (Нисходящий)"
-            elif regime_enum == Regime.EXPANSION:
-                return "🔥 Сильное расширение (Волатильность)"
-            elif regime_enum == Regime.COMPRESSION:
-                return "💤 Сужение диапазона (Ожидание импульса)"
-            else:
-                return "⚪️ Нейтральный (Боковик / Флэт)"
-
-        # 1. Global / Macro Regimes using Smart Engine
-        alltime_trend = regime_to_str(regimes.get("1w"), "Глобальный Бычий", "Глобальный Медвежий") if regimes else "Неизвестно"
-        daily_trend = regime_to_str(regimes.get("1d"), "Бычий Тренд", "Медвежий Тренд") if regimes else "Неизвестно"
-        macro_trend = regime_to_str(regimes.get("4h"), "Локально-Бычий", "Локально-Медвежий") if regimes else "Неизвестно"
-        micro_trend = regime_to_str(regimes.get("15m"), "Памп / Локально растем", "Дамп / Локально падаем") if regimes else "Неизвестно"
+        # 1. MTF Verdict Section
+        msg_parts.append(f"🌐 <b>Макро Тренд (1W)</b>: {verdict.macro_bias.value.upper()}")
+        msg_parts.append(f"📅 <b>Активный Тренд (1D)</b>: {verdict.active_bias.value.upper()}")
+        msg_parts.append(f"🧭 <b>Тип Сетапа (4H)</b>: {verdict.setup_type.value.replace('_', ' ').upper()}")
+        msg_parts.append(f"⚖️ <b>Подтверждение (1H)</b>: {verdict.confirmation_state.value.upper()}")
+        msg_parts.append(f"⚡️ <b>Триггер (15m)</b>: {verdict.trigger_state.value.upper()}")
+        msg_parts.append(f"🧠 <b>Уверенность MTF</b>: {verdict.confidence}/100\n")
         
-        msg_parts.append(f"<b>Вся История (1W)</b>: {alltime_trend}")
-        msg_parts.append(f"<b>Дневной Макро (1D)</b>: {daily_trend}")
-        msg_parts.append(f"<b>Среднесрок (4h)</b>: {macro_trend}")
-        msg_parts.append(f"<b>Микро Тренд (15m)</b>: {micro_trend}\n")
-        
+        if verdict.risk_flags:
+            msg_parts.append("⚠️ <b>Факторы Риска:</b>")
+            for risk in verdict.risk_flags:
+                msg_parts.append(f"  • {risk.replace('_', ' ').capitalize()}")
+            msg_parts.append("")
+        else:
+            msg_parts.append("✅ <b>Риски минимачны (Синхронизация ТФ)</b>\n")
+            
         # Nearest POI (FVG / OB) on 1h
         tf_1h = analyses.get("1h", {})
         msg_parts.append("🔎 <b>Ближайшие зоны интереса (1h):</b>")
@@ -123,51 +126,16 @@ class Notifier:
                 lvl = liq.get('Level', 0)
                 msg_parts.append(f"• {liq_type} скопление стопов на уровне: {lvl:.4f}")
         
-        # AI Verdict Context Engine V10 Logic
+        # AI Verdict Context Engine Logic
         msg_parts.append("\n💡 <b>Мнение Бота:</b>")
         
-        is_bullish = ("🟢" in daily_trend) and ("🟢" in macro_trend)
-        is_bearish = ("🔴" in daily_trend) and ("🔴" in macro_trend)
-        is_flat = ("⚪️" in daily_trend) or ("💤" in daily_trend)
-        
-        if is_bullish:
-            if "🔴" in micro_trend:
-                msg_parts.append("Инструмент находится в сильном глобальном и дневном восходящем тренде. Прямо сейчас идет локальный откат (15m). Идеальное время присматриваться к LONG-сетапам в зонах интереса (1h).")
-            else:
-                msg_parts.append("Тренды синхронизированы в лонг (от 1D до 15m). Рынок летит вверх. Рекомендуется искать точки входа в покупку (LONG) от ближайших бычьих ордерблоков.")
-        elif is_bearish:
-            if "🟢" in micro_trend:
-                msg_parts.append("Инструмент в тяжелом даунтренде на старших ТФ (1D, 4H), но прямо сейчас есть локальный бычий отскок (15m). Не попадайтесь в ловушку, ищите SHORT от свежих медвежьих имбалансов.")
-            else:
-                msg_parts.append("Рынок тотально падает по всем фронтам. Безопаснее всего искать шорт-позиции (SHORT) после небольших откатов в зоны сопротивления (OB/FVG).")
-        elif is_flat:
-             msg_parts.append("Дневка находится во флэте/боковике. Очевидного направленного движения нет. Торговля внутри боковика опасна, лучше дождаться пробоя диапазона или торговать скальпинг-сетапы на 15m.")
+        if verdict.confidence >= 70:
+            msg_parts.append("Тренды синхронизированы. Рынок имеет четкое направленное движение. Идеальное время для торговли в направлении макро-тренда от ближайших зон.")
+        elif verdict.confidence >= 50:
+            msg_parts.append("Есть незначительные рассинхроны между таймфреймами, но общая картина понятна. Можно торговать со сниженным риском.")
+        elif verdict.confidence >= 35:
+            msg_parts.append("Смешанная картина. Присутствуют контр-трендовые отскоки или слабая структура. Будьте осторожны.")
         else:
-            msg_parts.append("На рынке смешанная картина (например, Дневка растет, а 4h уже сломались вниз). Ситуация нестабильна. Рекомендуется воздержаться от сделок до синхронизации старших таймфреймов.")
-            
-        # Explicit Scenarios
-        msg_parts.append("\n📝 <b>КОНКРЕТНЫЕ СЦЕНАРИИ ТОРГОВЛИ:</b>")
-        
-        # Long Scenario logic based on 1h POIs
-        long_poi = "сильную зону поддержки"
-        if 'fvg' in tf_1h and any(f['FVG'] == 1 for f in tf_1h['fvg']):
-            f = [f for f in tf_1h['fvg'] if f['FVG'] == 1][-1]
-            long_poi = f"перекрытие Бычьего имбаланса ({f.get('Bottom', 0):.4f} - {f.get('Top', 0):.4f})"
-        elif 'order_blocks' in tf_1h and any(ob['OB'] == 1 for ob in tf_1h['order_blocks']):
-            ob = [ob for ob in tf_1h['order_blocks'] if ob['OB'] == 1][-1]
-            long_poi = f"тест Бычьего Ордерблока ({ob.get('Bottom', 0):.4f} - {ob.get('Top', 0):.4f})"
-            
-        msg_parts.append(f"📈 <b>Вариант ЛОНГа:</b> Дождаться спуска в {long_poi}. Если на 15-минутном графике там происходит локальный слом структуры вверх (CHoCH), открываем LONG со стопом за последний минимум. Тейк-профит — на обновлении ближайшего максимума.")
-
-        # Short Scenario logic
-        short_poi = "зону сильного сопротивления"
-        if 'fvg' in tf_1h and any(f['FVG'] == -1 for f in tf_1h['fvg']):
-            f = [f for f in tf_1h['fvg'] if f['FVG'] == -1][-1]
-            short_poi = f"Медвежий имбаланс (FVG) между {f.get('Bottom', 0):.4f} и {f.get('Top', 0):.4f}"
-        elif 'order_blocks' in tf_1h and any(ob['OB'] == -1 for ob in tf_1h['order_blocks']):
-            ob = [ob for ob in tf_1h['order_blocks'] if ob['OB'] == -1][-1]
-            short_poi = f"Медвежий Ордерблок (OB) на отметке {ob.get('Bottom', 0):.4f} - {ob.get('Top', 0):.4f}"
-            
-        msg_parts.append(f"📉 <b>Вариант ШОРТа:</b> Если цена подскакивает в {short_poi}, и мы видим резкий слом (CHoCH) медвежьего характера на 15m, тогда открываем SHORT со стопом за этот новый максимум. Иначе — риск пробития зоны.")
+            msg_parts.append("На рынке полный хаос и конфликты таймфреймов. Настоятельно рекомендуется воздержаться от сделок до прояснения ситуации.")
 
         return "\n".join(msg_parts)

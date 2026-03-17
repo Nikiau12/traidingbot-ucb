@@ -1,10 +1,30 @@
 import pandas as pd
-from .models import Regime, MarketPhase, SignalType, ContextScore, CoinProfile
+from .models import (
+    CoinProfile, ContextScore, SignalType, Regime, MarketPhase,
+    MacroBias, ActiveBias, SetupType, ConfirmationState, TriggerState, MTFVerdict
+)
 from .coin_config import get_coin_profile
 from .regime_classifier import RegimeClassifier
 from .structure_engine import StructureEngine
-from .momentum_rsi import MomentumEngine
+from .momentum_rsi import MomentumRSI
 from .confidence_scorer import ConfidenceScorer
+from .mtf_fusion import MTFFusionEngine
+
+__all__ = [
+    'SmartContextEngine',
+    'MTFFusionEngine',
+    'CoinProfile',
+    'ContextScore',
+    'SignalType',
+    'Regime',
+    'MarketPhase',
+    'MacroBias',
+    'ActiveBias',
+    'SetupType',
+    'ConfirmationState',
+    'TriggerState',
+    'MTFVerdict'
+]
 
 class SmartContextEngine:
     """
@@ -14,7 +34,7 @@ class SmartContextEngine:
     def __init__(self):
         self.regime_classifier = RegimeClassifier()
         self.structure_engine = StructureEngine()
-        self.momentum_engine = MomentumEngine()
+        self.momentum_engine = MomentumRSI()
         self.scorer = ConfidenceScorer()
 
     def add_context_indicators(self, df: pd.DataFrame):

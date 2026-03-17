@@ -8,7 +8,7 @@ from exchange_client import ExchangeClient
 from smc_analyzer import SMCAnalyzer
 from spike_scanner import SpikeScanner
 from notifier import Notifier
-from smart_engine import SmartContextEngine, SignalType
+from smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TIMEFRAMES, TOP_COINS_LIMIT, CORE_PAIRS
 
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
@@ -45,6 +45,7 @@ exchange = ExchangeClient()
 smc_analyzer = SMCAnalyzer()
 spike_scanner = SpikeScanner()
 smart_engine = SmartContextEngine()
+mtf_engine = MTFFusionEngine()
 # Передаем set пользователей в Notifier
 notifier = Notifier(bot_instance, active_users)
 
@@ -90,6 +91,20 @@ async def cmd_setup(message: types.Message):
 async def cmd_spikes(message: types.Message):
     await handle_spikes_request(message)
 
+async def fetch_mtf_context(symbol: str) -> dict:
+    """Helper to fetch 5 timeframes for MTF analysis"""
+    dfs_dict = {"1w": None, "1d": None, "4h": None, "1h": None, "15m": None}
+    for tf in ["1w", "1d", "4h", "1h", "15m"]:
+        if tf == "1w":
+            df = await exchange.fetch_historical_data(symbol, "1w")
+        else:
+            df = await exchange.fetch_ohlcv(symbol, tf)
+        if not df.empty:
+            smart_engine.add_context_indicators(df)
+            dfs_dict[tf] = df
+        await asyncio.sleep(0.05)
+    return dfs_dict
+
 async def handle_full_analysis_request(message: types.Message, coin: str):
     symbol = await exchange.validate_symbol(coin)
     if not symbol:
@@ -99,29 +114,21 @@ async def handle_full_analysis_request(message: types.Message, coin: str):
     await message.reply(f"🤖 Собираю данные для глубокого анализа {symbol}\n(15m, 1h, 4h, 1d + Вся История 1w)...")
     try:
         analyses = {"1w": {}, "1d": {}, "4h": {}, "1h": {}, "15m": {}}
-        regimes = {}  # Store the smart regime for each TF
+        # Parallelism or Sequential fetching using the new helper
+        dfs_dict = await fetch_mtf_context(symbol)
         
-        for tf in ["1w", "1d", "4h", "1h", "15m"]:
-            if tf == "1w":
-                df = await exchange.fetch_historical_data(symbol, "1w")
-            else:
-                df = await exchange.fetch_ohlcv(symbol, tf)
-                
-            if not df.empty:
+        for tf, df in dfs_dict.items():
+            if df is not None:
                 analyses[tf] = smc_analyzer.analyze_tf(df)
-                
-                # --- V10 Smart Regime Context ---
-                smart_engine.add_context_indicators(df)
-                regimes[tf] = smart_engine.regime_classifier.classify(df)
-            else:
-                regimes[tf] = None
-            await asyncio.sleep(0.1) # Small delay to prevent rate limits
 
-        if not any(analyses.values()): # Check if any analysis was successful
+        if not any(analyses.values()):
             await message.reply("🤷‍♂️ Не удалось получить графики для анализа с MEXC.")
             return
             
-        msg = notifier.format_full_analysis(symbol, analyses)
+        # Get the strict hierarchical MTF verdict
+        verdict = mtf_engine.analyze(dfs_dict)
+        
+        msg = notifier.format_full_analysis(symbol, analyses, verdict)
         await message.reply(msg, parse_mode="HTML")
     except Exception as e:
         await message.reply(f"❌ Ошибка при глубоком анализе: {e}")
@@ -145,9 +152,14 @@ async def handle_setup_request(message: types.Message, coin: str):
                 # Фильтруем сетап через Smart Context Engine
                 score = smart_engine.analyze_context(df, symbol, setup['type'])
                 if score.signal != SignalType.NO_TRADE:
-                    msg = notifier.format_smc_setup(symbol, tf, setup, score)
-                    await message.reply(msg, parse_mode="HTML")
-                    found = True
+                    # MTF V11 Verification
+                    dfs_dict = await fetch_mtf_context(symbol)
+                    verdict = mtf_engine.analyze(dfs_dict)
+                    
+                    if verdict.setup_type.name != "NO_TRADE":
+                        msg = notifier.format_smc_setup(symbol, tf, setup, score, verdict)
+                        await message.reply(msg, parse_mode="HTML")
+                        found = True
         
         if not found:
             await message.reply(f"🤷‍♂️ В данный момент нет свежих сетапов SMC по {symbol} на таймфреймах 15m, 1h, 4h.")
@@ -276,11 +288,19 @@ async def market_scanner_loop():
                             if score.signal == SignalType.NO_TRADE:
                                 continue
                                 
+                            # MTF V11 Verification
+                            dfs_dict = await fetch_mtf_context(symbol)
+                            verdict = mtf_engine.analyze(dfs_dict)
+                            
+                            # Reject weak setups using MTF Logic
+                            if verdict.setup_type.name == "NO_TRADE":
+                                continue
+                                
                             setup_key = f"{symbol}_{tf}_{setup['type']}"
                             last_time = last_setup_alert.get(setup_key, 0)
                             
                             if current_time - last_time > SETUP_COOLDOWN:
-                                msg = notifier.format_smc_setup(symbol, tf, setup, score)
+                                msg = notifier.format_smc_setup(symbol, tf, setup, score, verdict)
                                 await notifier.send_message(msg)
                                 last_setup_alert[setup_key] = current_time # Обновляем кэш
                                 await asyncio.sleep(0.1)
