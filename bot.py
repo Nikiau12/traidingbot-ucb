@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import time
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 from exchange_client import ExchangeClient
@@ -217,10 +218,20 @@ async def handle_natural_language(message: types.Message):
 
 
 async def market_scanner_loop():
+    # Анти-спам кэши: отслеживаем время (timestamp) последнего отправленного алерта
+    last_spike_alert = {}  # format: {"BTC/USDT_15m": 1690000000.0}
+    last_setup_alert = {}  # format: {"BTC/USDT_1h_LONG": 1690000000.0}
+    
+    # Кулдауны (в секундах)
+    SPIKE_COOLDOWN = 60 * 60  # 1 час для одинакового спайка
+    SETUP_COOLDOWN = 2 * 60 * 60  # 2 часа для одинакового направления сетапа
+
     while True:
         try:
             symbols = await exchange.get_top_pairs()
             print(f"Фоновый скан: {len(symbols)} пар...")
+            
+            current_time = time.time()
 
             for i, symbol in enumerate(symbols):
                 is_smc_eligible = (i < TOP_COINS_LIMIT) or (symbol in CORE_PAIRS)
@@ -233,9 +244,14 @@ async def market_scanner_loop():
                     # ----- Мониторинг всплесков -----
                     spike = spike_scanner.scan(df)
                     if spike:
-                        msg = notifier.format_spike_alert(symbol, tf, spike)
-                        await notifier.send_message(msg)
-                        await asyncio.sleep(0.1)
+                        spike_key = f"{symbol}_{tf}_{spike['direction']}"
+                        last_time = last_spike_alert.get(spike_key, 0)
+                        
+                        if current_time - last_time > SPIKE_COOLDOWN:
+                            msg = notifier.format_spike_alert(symbol, tf, spike)
+                            await notifier.send_message(msg)
+                            last_spike_alert[spike_key] = current_time # Обновляем кэш
+                            await asyncio.sleep(0.1)
 
                     # ----- Мониторинг SMC паттернов -----
                     if is_smc_eligible:
@@ -243,11 +259,21 @@ async def market_scanner_loop():
                         setup = smc_analyzer.find_setup(smc_results)
                         
                         if setup:
-                            msg = notifier.format_smc_setup(symbol, tf, setup)
-                            await notifier.send_message(msg)
-                            await asyncio.sleep(0.1)
+                            setup_key = f"{symbol}_{tf}_{setup['type']}"
+                            last_time = last_setup_alert.get(setup_key, 0)
+                            
+                            if current_time - last_time > SETUP_COOLDOWN:
+                                msg = notifier.format_smc_setup(symbol, tf, setup)
+                                await notifier.send_message(msg)
+                                last_setup_alert[setup_key] = current_time # Обновляем кэш
+                                await asyncio.sleep(0.1)
 
                 await asyncio.sleep(0.5)
+
+            # Очистка старого кэша, чтобы не текло ОЗУ (удаляем то, что старше кулдауна)
+            current_time = time.time()
+            last_spike_alert = {k: v for k, v in last_spike_alert.items() if current_time - v <= SPIKE_COOLDOWN}
+            last_setup_alert = {k: v for k, v in last_setup_alert.items() if current_time - v <= SETUP_COOLDOWN}
 
             print("Фоновый цикл завершен. Ожидание 60 секунд...")
             await asyncio.sleep(60)
