@@ -38,7 +38,12 @@ SPIKE_MIN_PCT_CHANGE = 2.0 # Minimum % move in 15m candle to trigger pump alert
 # SMC Analyzer parameters
 SMC_LOOKBACK_PERIOD = 200 # Candles to look back for structure
 
-# Risk Management
+# Global Risk Management (For Alerts / MEXC)
 RISK_PER_TRADE_PERCENT = 1.0 # 1% of total balance per trade
 MAX_OPEN_POSITIONS = 3
 LEVERAGE = 10
+
+# BingX AutoTrader Risk Management
+BINGX_WHITELIST = ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+BINGX_RISK_PER_TRADE_PERCENT = 0.5 # 0.5% of free balance
+BINGX_LEVERAGE = 5 # Safe low leverage

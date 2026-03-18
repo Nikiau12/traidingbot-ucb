@@ -5,7 +5,7 @@ from exchange_client_bingx import ExchangeClientBingX
 from smc_analyzer import SMCAnalyzer
 from smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
 from notifier import Notifier
-from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TOP_COINS_LIMIT, CORE_PAIRS, AUTO_TRADING_ENABLED, RISK_PER_TRADE_PERCENT, LEVERAGE
+from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTO_TRADING_ENABLED, BINGX_WHITELIST, BINGX_RISK_PER_TRADE_PERCENT, BINGX_LEVERAGE
 
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
 
@@ -43,7 +43,7 @@ async def execute_trade(symbol, tf, setup, verdict):
             return False
             
         # Position sizing logic base
-        risk_amount_usdt = balance_usdt * (RISK_PER_TRADE_PERCENT / 100.0)
+        risk_amount_usdt = balance_usdt * (BINGX_RISK_PER_TRADE_PERCENT / 100.0)
         
         entry_price = setup['entry']
         stop_loss = setup['stop_loss']
@@ -54,7 +54,7 @@ async def execute_trade(symbol, tf, setup, verdict):
             
         sl_percent = abs(entry_price - stop_loss) / entry_price
         
-        position_size_usdt = risk_amount_usdt * LEVERAGE
+        position_size_usdt = risk_amount_usdt * BINGX_LEVERAGE
         
         # Convert to base asset (Coin amount)
         price = await exchange.fetch_ticker_price(symbol)
@@ -79,7 +79,7 @@ async def execute_trade(symbol, tf, setup, verdict):
                 f"🤖 <b>[БИНГО! АВТОТРЕЙДЕР В РАБОТЕ - BINGX]</b> 🤖\n\n"
                 f"Успешно открыта позиция по <b>{symbol}</b>!\n"
                 f"Направление: {'🟢 LONG' if side == 'buy' else '🔴 SHORT'}\n"
-                f"Размер маржи: {risk_amount_usdt:.2f} USDT (Плечо: x{LEVERAGE})\n"
+                f"Размер маржи: {risk_amount_usdt:.2f} USDT (Плечо: x{BINGX_LEVERAGE})\n"
                 f"Объем позиции: {position_size_usdt:.2f} USDT\n"
                 f"Баланс: {balance_usdt:.2f} USDT\n"
                 f"Stop-Loss: {stop_loss:.5f}\n"
@@ -101,15 +101,11 @@ async def autotrade_scanner_loop():
 
     while True:
         try:
-            symbols = await exchange.get_top_pairs()
-            print(f"[BingX AutoTrader] Фоновый скан: {len(symbols)} пар...")
+            symbols = BINGX_WHITELIST
+            print(f"[BingX AutoTrader] Фоновый скан белого списка: {symbols}...")
             current_time = time.time()
 
             for i, symbol in enumerate(symbols):
-                is_smc_eligible = (i < TOP_COINS_LIMIT) or (symbol in CORE_PAIRS)
-                if not is_smc_eligible:
-                    continue
-
                 for tf in ["15m", "1h", "4h"]:
                     df = await exchange.fetch_ohlcv(symbol, tf)
                     if df.empty:
