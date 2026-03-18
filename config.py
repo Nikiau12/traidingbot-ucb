@@ -44,6 +44,6 @@ MAX_OPEN_POSITIONS = 3
 LEVERAGE = 10
 
 # BingX AutoTrader Risk Management
-BINGX_WHITELIST = ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
-BINGX_MARGIN_PER_ORDER = 1.0 # 1 USDT жесткой маржи на каждый из 3 ордеров в сетке (Итого риск на сделку 3$)
+BINGX_WHITELIST = ["BTC/USDT:USDT", "ETH/USDT:USDT"]
+BINGX_MARGIN_PER_ORDER = 2.0 # 2 USDT жесткой маржи на каждый из 3 ордеров в сетке (Итого риск на сделку 6$)
 BINGX_LEVERAGE = 15 # Плечо x15 обеспечивает минимальный объем сделки (1$ * 15 = 15$), пробивающий лимиты BingX
