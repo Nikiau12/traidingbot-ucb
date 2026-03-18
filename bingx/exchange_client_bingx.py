@@ -58,6 +58,17 @@ class ExchangeClientBingX:
             print(f"Error fetching price for {symbol}: {e}")
             return 0.0
 
+    async def fetch_active_positions_count(self) -> int:
+        """Fetch the total number of currently open positions."""
+        try:
+            positions = await self.exchange.fetch_positions()
+            # Count positions where contracts/size is strictly greater than 0
+            count = sum(1 for p in positions if float(p.get('contracts', 0)) > 0)
+            return count
+        except Exception as e:
+            print(f"[BingX] Error fetching active positions: {e}")
+            return 0
+
     async def close(self):
         await self.exchange.close()
 

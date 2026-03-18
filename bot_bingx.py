@@ -6,7 +6,7 @@ from core.smc_analyzer import SMCAnalyzer
 from core.spike_scanner import SpikeScanner
 from core.smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
 from core.notifier import Notifier
-from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTO_TRADING_ENABLED, BINGX_WHITELIST, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE
+from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTO_TRADING_ENABLED, BINGX_WHITELIST, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE, BINGX_ALTCOIN_MARGIN, BINGX_MAX_OPEN_POSITIONS
 
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
 
@@ -143,6 +143,12 @@ async def autotrade_scanner_loop():
 
     while True:
         try:
+            current_positions_count = await exchange.fetch_active_positions_count()
+            if current_positions_count >= BINGX_MAX_OPEN_POSITIONS:
+                print(f"[BingX AutoTrader] Достигнут максиум открытых сделок ({current_positions_count}/{BINGX_MAX_OPEN_POSITIONS})! Сканирование приостановлено.")
+                await asyncio.sleep(60)
+                continue
+                
             top_pairs = await exchange.get_top_pairs()
             # Убедимся, что наши основные пары тоже есть в списке для сканирования 
             symbols = list(set(BINGX_WHITELIST + top_pairs))
