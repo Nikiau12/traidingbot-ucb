@@ -191,7 +191,9 @@ async def autotrade_scanner_loop():
                     allow_smc = False
                     if tf in ["4h", "1d"]:
                         allow_smc = True
-                    elif tf == "30m" and symbol in ["ETH/USDT", "SOL/USDT"]:
+                    elif tf == "30m" and symbol == "ETH/USDT":
+                        allow_smc = True
+                    elif tf == "15m" and symbol == "SOL/USDT":
                         allow_smc = True
                         
                     if allow_smc:
