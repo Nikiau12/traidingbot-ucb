@@ -12,5 +12,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Копируем остальной код бота
 COPY . .
 
-# Команда для запуска бота
-CMD ["python", "-u", "bot.py"]
+# Копируем скрипт запуска и даем права
+COPY start.sh .
+RUN chmod +x start.sh
+
+# Команда для запуска контейнера (2 бота параллельно)
+CMD ["./start.sh"]
