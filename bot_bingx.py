@@ -247,6 +247,11 @@ async def main():
     try:
         if not AUTO_TRADING_ENABLED:
             print("[ВНИМАНИЕ] Автоматическая торговля отключена (AUTO_TRADING_ENABLED=False). Сделки не будут открываться.")
+            
+        print("[BingX] Принудительная установка плеча для рабочих торговых пар...")
+        for symbol in BINGX_WHITELIST:
+            await exchange.set_leverage(symbol, BINGX_LEVERAGE)
+        
         await autotrade_scanner_loop()
     finally:
         await exchange.close()

@@ -61,6 +61,18 @@ class ExchangeClientBingX:
     async def close(self):
         await self.exchange.close()
 
+    async def set_leverage(self, symbol: str, leverage: int):
+        """Set explicit leverage and isolated margin mode for the symbol"""
+        try:
+            await self.exchange.set_margin_mode('isolated', symbol)
+        except Exception:
+            pass # Isolated might already be set
+        try:
+            await self.exchange.set_leverage(leverage, symbol)
+            print(f"[BingX] Успешно установлено плечо x{leverage} (Isolated) для {symbol}")
+        except Exception as e:
+            print(f"[BingX] Не удалось автоматически сменить плечо для {symbol}: {e}")
+
     async def get_top_pairs(self):
         """Fetches the top N USDT perpetual pairs by 24h quote volume."""
         try:
