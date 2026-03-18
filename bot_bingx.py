@@ -67,30 +67,30 @@ async def execute_smart_grid(symbol, tf, setup, verdict, is_spike=False):
         grid_messages = []
         
         if is_spike:
-            # Для Спайков: 3 Market ордера с разными TP
-            tp1 = entry_price + (entry_price - stop_loss) * 1.0 if side == 'buy' else entry_price - (stop_loss - entry_price) * 1.0
-            tp2 = entry_price + (entry_price - stop_loss) * 2.0 if side == 'buy' else entry_price - (stop_loss - entry_price) * 2.0
-            tp3 = entry_price + (entry_price - stop_loss) * 3.0 if side == 'buy' else entry_price - (stop_loss - entry_price) * 3.0
+            # Для Спайков: 3 Market ордера с одинаковым TP (RR 1:2)
+            tp = entry_price + (entry_price - stop_loss) * 2.0 if side == 'buy' else entry_price - (stop_loss - entry_price) * 2.0
             
-            for i, tp in enumerate([tp1, tp2, tp3]):
+            for i in range(3):
                 amount_coin = position_size_usdt_per_order / current_price
                 order = await exchange.create_market_order_with_sl_tp(
                     symbol=symbol, side=side, amount=amount_coin, stop_loss=stop_loss, take_profit=tp
                 )
                 if order:
                     orders_placed += 1
-                    grid_messages.append(f"└ Орд {i+1} (Market): {position_size_usdt_per_order:.1f}$, TP={tp:.4f}")
+                    grid_messages.append(f"└ Орд {i+1} (Market): {position_size_usdt_per_order:.1f}$, TP={tp:.4f} (1:2)")
         else:
             # Для SMC: 1 Market + 2 Консервативных Limit
+            # Все ордера имеют Риск/Прибыль 1:2 относительно своей точки входа!
+            
             # Ордер 1 (Market)
-            tp1 = entry_price + distance_to_sl * 1.0 if side == 'buy' else entry_price - distance_to_sl * 1.0
+            tp1 = entry_price + distance_to_sl * 2.0 if side == 'buy' else entry_price - distance_to_sl * 2.0
             amount1 = position_size_usdt_per_order / current_price
             order1 = await exchange.create_market_order_with_sl_tp(
                 symbol=symbol, side=side, amount=amount1, stop_loss=stop_loss, take_profit=tp1
             )
             if order1:
                 orders_placed += 1
-                grid_messages.append(f"└ Орд 1 (Market): Вход {current_price:.4f}, TP={tp1:.4f}")
+                grid_messages.append(f"└ Орд 1 (Market): Вход {current_price:.4f}, TP={tp1:.4f} (1:2)")
                 
             # Ордер 2 (Limit - 40% просадки)
             entry2 = entry_price - distance_to_sl * 0.4 if side == 'buy' else entry_price + distance_to_sl * 0.4
@@ -101,18 +101,18 @@ async def execute_smart_grid(symbol, tf, setup, verdict, is_spike=False):
             )
             if order2:
                 orders_placed += 1
-                grid_messages.append(f"└ Орд 2 (Limit): Вход {entry2:.4f}, TP={tp2:.4f}")
+                grid_messages.append(f"└ Орд 2 (Limit): Вход {entry2:.4f}, TP={tp2:.4f} (1:2)")
                 
             # Ордер 3 (Limit - 70% просадки)
             entry3 = entry_price - distance_to_sl * 0.7 if side == 'buy' else entry_price + distance_to_sl * 0.7
-            tp3 = entry3 + (entry3 - stop_loss) * 3.0 if side == 'buy' else entry3 - (stop_loss - entry3) * 3.0
+            tp3 = entry3 + (entry3 - stop_loss) * 2.0 if side == 'buy' else entry3 - (stop_loss - entry3) * 2.0
             amount3 = position_size_usdt_per_order / entry3
             order3 = await exchange.create_limit_order_with_sl_tp(
                 symbol=symbol, side=side, amount=amount3, price=entry3, stop_loss=stop_loss, take_profit=tp3
             )
             if order3:
                 orders_placed += 1
-                grid_messages.append(f"└ Орд 3 (Limit): Вход {entry3:.4f}, TP={tp3:.4f}")
+                grid_messages.append(f"└ Орд 3 (Limit): Вход {entry3:.4f}, TP={tp3:.4f} (1:2)")
                 
         if orders_placed > 0:
             grid_text = "\n".join(grid_messages)
