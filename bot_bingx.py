@@ -147,7 +147,7 @@ async def autotrade_scanner_loop():
             current_time = time.time()
 
             for i, symbol in enumerate(symbols):
-                for tf in ["15m", "1h", "4h"]:
+                for tf in ["15m", "30m", "1h", "4h", "1d"]:
                     df = await exchange.fetch_ohlcv(symbol, tf)
                     if df.empty:
                         continue
@@ -187,8 +187,14 @@ async def autotrade_scanner_loop():
                                     await asyncio.sleep(2)
                                     continue # Если вошли по спайку, пропускаем SMC анализ для этого таймфрейма, чтобы избежать дублей
                     
-                    # --- Медленная торговля SMC Сетапов (Только 4h, 1d) ---
+                    # --- Медленная торговля SMC Сетапов ---
+                    allow_smc = False
                     if tf in ["4h", "1d"]:
+                        allow_smc = True
+                    elif tf == "30m" and symbol in ["ETH/USDT", "SOL/USDT"]:
+                        allow_smc = True
+                        
+                    if allow_smc:
                         smc_results = smc_analyzer.analyze_tf(df)
                         setup = smc_analyzer.find_setup(smc_results)
                         
