@@ -32,9 +32,9 @@ async def fetch_mtf_context(symbol: str) -> dict:
         await asyncio.sleep(0.05)
     return dfs_dict
 
-async def execute_trade(symbol, tf, setup, verdict):
+async def execute_smart_grid(symbol, tf, setup, verdict, is_spike=False):
     if not AUTO_TRADING_ENABLED:
-        print(f"[BingX AutoTrader] Пропуск автоматической сделки (Симуляция) по {symbol}. AUTO_TRADING_ENABLED = False.")
+        print(f"[BingX AutoTrader] Пропуск автоматической сделки по {symbol}. AUTO_TRADING_ENABLED=False.")
         return False
         
     try:
@@ -44,57 +44,96 @@ async def execute_trade(symbol, tf, setup, verdict):
             await notifier.send_message(msg)
             return False
             
-        # Position sizing logic base
-        risk_amount_usdt = balance_usdt * (BINGX_RISK_PER_TRADE_PERCENT / 100.0)
+        total_risk_amount_usdt = balance_usdt * (BINGX_RISK_PER_TRADE_PERCENT / 100.0)
         
+        # Разделяем риск на 3 ордера (сетку)
+        order_risk_usdt = total_risk_amount_usdt / 3.0
+        position_size_usdt_per_order = order_risk_usdt * BINGX_LEVERAGE
+        
+        current_price = await exchange.fetch_ticker_price(symbol)
+        if current_price <= 0:
+            return False
+            
         entry_price = setup['entry']
         stop_loss = setup['stop_loss']
-        take_profit = setup['take_profit']
+        side = 'buy' if setup['type'] == 'LONG' else 'sell'
         
         if entry_price == stop_loss:
             return False
             
-        sl_percent = abs(entry_price - stop_loss) / entry_price
+        distance_to_sl = abs(entry_price - stop_loss)
         
-        position_size_usdt = risk_amount_usdt * BINGX_LEVERAGE
+        orders_placed = 0
+        grid_messages = []
         
-        # Convert to base asset (Coin amount)
-        price = await exchange.fetch_ticker_price(symbol)
-        if price <= 0:
-            return False
+        if is_spike:
+            # Для Спайков: 3 Market ордера с разными TP
+            tp1 = entry_price + (entry_price - stop_loss) * 1.0 if side == 'buy' else entry_price - (stop_loss - entry_price) * 1.0
+            tp2 = entry_price + (entry_price - stop_loss) * 2.0 if side == 'buy' else entry_price - (stop_loss - entry_price) * 2.0
+            tp3 = entry_price + (entry_price - stop_loss) * 3.0 if side == 'buy' else entry_price - (stop_loss - entry_price) * 3.0
             
-        amount_coin = position_size_usdt / price
-        side = 'buy' if setup['type'] == 'LONG' else 'sell'
-        
-        print(f"[BingX AutoTrader] Размещаю ордер {side} на {amount_coin:.4f} {symbol}. SL={stop_loss}, TP={take_profit}")
-        
-        order = await exchange.create_market_order_with_sl_tp(
-            symbol=symbol,
-            side=side,
-            amount=amount_coin,
-            stop_loss=stop_loss,
-            take_profit=take_profit
-        )
-        
-        if order:
+            for i, tp in enumerate([tp1, tp2, tp3]):
+                amount_coin = position_size_usdt_per_order / current_price
+                order = await exchange.create_market_order_with_sl_tp(
+                    symbol=symbol, side=side, amount=amount_coin, stop_loss=stop_loss, take_profit=tp
+                )
+                if order:
+                    orders_placed += 1
+                    grid_messages.append(f"└ Орд {i+1} (Market): {position_size_usdt_per_order:.1f}$, TP={tp:.4f}")
+        else:
+            # Для SMC: 1 Market + 2 Консервативных Limit
+            # Ордер 1 (Market)
+            tp1 = entry_price + distance_to_sl * 1.0 if side == 'buy' else entry_price - distance_to_sl * 1.0
+            amount1 = position_size_usdt_per_order / current_price
+            order1 = await exchange.create_market_order_with_sl_tp(
+                symbol=symbol, side=side, amount=amount1, stop_loss=stop_loss, take_profit=tp1
+            )
+            if order1:
+                orders_placed += 1
+                grid_messages.append(f"└ Орд 1 (Market): Вход {current_price:.4f}, TP={tp1:.4f}")
+                
+            # Ордер 2 (Limit - 40% просадки)
+            entry2 = entry_price - distance_to_sl * 0.4 if side == 'buy' else entry_price + distance_to_sl * 0.4
+            tp2 = entry2 + (entry2 - stop_loss) * 2.0 if side == 'buy' else entry2 - (stop_loss - entry2) * 2.0
+            amount2 = position_size_usdt_per_order / entry2
+            order2 = await exchange.create_limit_order_with_sl_tp(
+                symbol=symbol, side=side, amount=amount2, price=entry2, stop_loss=stop_loss, take_profit=tp2
+            )
+            if order2:
+                orders_placed += 1
+                grid_messages.append(f"└ Орд 2 (Limit): Вход {entry2:.4f}, TP={tp2:.4f}")
+                
+            # Ордер 3 (Limit - 70% просадки)
+            entry3 = entry_price - distance_to_sl * 0.7 if side == 'buy' else entry_price + distance_to_sl * 0.7
+            tp3 = entry3 + (entry3 - stop_loss) * 3.0 if side == 'buy' else entry3 - (stop_loss - entry3) * 3.0
+            amount3 = position_size_usdt_per_order / entry3
+            order3 = await exchange.create_limit_order_with_sl_tp(
+                symbol=symbol, side=side, amount=amount3, price=entry3, stop_loss=stop_loss, take_profit=tp3
+            )
+            if order3:
+                orders_placed += 1
+                grid_messages.append(f"└ Орд 3 (Limit): Вход {entry3:.4f}, TP={tp3:.4f}")
+                
+        if orders_placed > 0:
+            grid_text = "\n".join(grid_messages)
             msg = (
-                f"🤖 <b>[БИНГО! АВТОТРЕЙДЕР В РАБОТЕ - BINGX]</b> 🤖\n\n"
-                f"Успешно открыта позиция по <b>{symbol}</b>!\n"
-                f"Направление: {'🟢 LONG' if side == 'buy' else '🔴 SHORT'}\n"
-                f"Размер маржи: {risk_amount_usdt:.2f} USDT (Плечо: x{BINGX_LEVERAGE})\n"
-                f"Объем позиции: {position_size_usdt:.2f} USDT\n"
-                f"Баланс: {balance_usdt:.2f} USDT\n"
-                f"Stop-Loss: {stop_loss:.5f}\n"
-                f"Take-Profit: {take_profit:.5f}"
+                f"🤖 <b>[SMART GRID ВЫСТАВЛЕН - BINGX]</b> 🤖\n\n"
+                f"Монета: <b>{symbol}</b> | Направление: {'🟢 LONG' if side == 'buy' else '🔴 SHORT'}\n"
+                f"Стратегия: {'Импульс (Market x3)' if is_spike else 'SMC (Market + 2 Limits)'}\n"
+                f"Общий риск: {total_risk_amount_usdt:.2f} USDT (Плечо: x{BINGX_LEVERAGE})\n"
+                f"Единый Stop-Loss: {stop_loss:.5f}\n\n"
+                f"<b>Структура сетки:</b>\n"
+                f"{grid_text}\n\n"
+                f"Баланс: {balance_usdt:.2f} USDT"
             )
             await notifier.send_message(msg)
             return True
         else:
-            await notifier.send_message(f"❌ [BingX] Ошибка исполнения сделки по {symbol}. API биржи не приняло ордер.")
+            await notifier.send_message(f"❌ [BingX] Ошибка выставления сетки ордеров по {symbol}. Биржа отклонила все запросы.")
             return False
             
     except Exception as e:
-        print(f"Ошибка исполнения ордера: {e}")
+        print(f"Ошибка выставления Smart Grid: {e}")
         return False
 
 async def autotrade_scanner_loop():
@@ -142,7 +181,7 @@ async def autotrade_scanner_loop():
                                 
                                 print(f"[BingX AutoTrader] 🔥 ОБНАРУЖЕН {'ПАМП' if side == 'LONG' else 'ДАМП'} ПО {symbol}! Вход {side} по тренду импульса.")
                                 
-                                executed = await execute_trade(symbol, "15m_SPIKE", setup_spike, None)
+                                executed = await execute_smart_grid(symbol, "15m_SPIKE", setup_spike, None, is_spike=True)
                                 if executed:
                                     last_setup_alert[spike_key] = current_time
                                     await asyncio.sleep(2)
@@ -175,7 +214,7 @@ async def autotrade_scanner_loop():
                         last_time = last_setup_alert.get(setup_key, 0)
                         
                         if current_time - last_time > SETUP_COOLDOWN:
-                            executed = await execute_trade(symbol, tf, setup, verdict)
+                            executed = await execute_smart_grid(symbol, tf, setup, verdict, is_spike=False)
                             if executed:
                                 last_setup_alert[setup_key] = current_time
                                 await asyncio.sleep(2)

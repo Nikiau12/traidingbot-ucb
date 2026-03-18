@@ -150,3 +150,29 @@ class ExchangeClientBingX:
         except Exception as e:
             print(f"[BingX] Error creating order for {symbol}: {e}")
             return None
+
+    async def create_limit_order_with_sl_tp(self, symbol: str, side: str, amount: float, price: float, stop_loss: float, take_profit: float):
+        """
+        Create a Limit order (LONG/SHORT) on BingX futures with explicit sl and tp.
+        `side` should be 'buy' or 'sell'.
+        """
+        try:
+            position_side = 'LONG' if side.lower() == 'buy' else 'SHORT'
+            
+            params = {
+                'positionSide': position_side,
+                'stopLoss': {
+                    'triggerPrice': stop_loss,
+                    'type': 'STOP_MARKET'
+                },
+                'takeProfit': {
+                    'triggerPrice': take_profit,
+                    'type': 'TAKE_PROFIT_MARKET'
+                }
+            }
+            order = await self.exchange.create_limit_order(symbol, side, amount, price, params)
+            print(f"[BingX] Limit Order secure execution: {order}")
+            return order
+        except Exception as e:
+            print(f"[BingX] Error creating limit order for {symbol}: {e}")
+            return None
