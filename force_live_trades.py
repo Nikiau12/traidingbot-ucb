@@ -1,6 +1,6 @@
 import asyncio
 from bot_bingx import execute_smart_grid
-from exchange_client_bingx import ExchangeClientBingX
+from bingx.exchange_client_bingx import ExchangeClientBingX
 
 async def force_trade():
     print("🚀 ПРИНУДИТЕЛЬНЫЙ ВХОД В РЕАЛЬНУЮ СДЕЛКУ 🚀")

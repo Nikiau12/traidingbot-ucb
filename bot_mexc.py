@@ -4,12 +4,12 @@ import os
 import time
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
-from exchange_client import ExchangeClient
-from smc_analyzer import SMCAnalyzer
-from spike_scanner import SpikeScanner
-from notifier import Notifier
-from smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
-from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TIMEFRAMES, TOP_COINS_LIMIT, CORE_PAIRS
+from mexc.exchange_client_mexc import ExchangeClient
+from core.smc_analyzer import SMCAnalyzer
+from core.spike_scanner import SpikeScanner
+from core.notifier import Notifier
+from core.smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
+from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TIMEFRAMES, TOP_COINS_LIMIT, CORE_PAIRS
 
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()

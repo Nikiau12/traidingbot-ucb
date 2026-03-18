@@ -1,5 +1,5 @@
 import pandas as pd
-from config import SPIKE_VOLUME_MULTIPLIER, SPIKE_PRICE_ATR_MULTIPLIER, SPIKE_MIN_PCT_CHANGE
+from core.config import SPIKE_VOLUME_MULTIPLIER, SPIKE_PRICE_ATR_MULTIPLIER, SPIKE_MIN_PCT_CHANGE
 
 class SpikeScanner:
     def __init__(self, atr_period=14, volume_period=20):

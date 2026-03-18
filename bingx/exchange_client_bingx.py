@@ -1,7 +1,7 @@
 import asyncio
 import ccxt.async_support as ccxt
 import pandas as pd
-from config import BINGX_API_KEY, BINGX_API_SECRET, CORE_PAIRS, MEMECOIN_V2_LIMIT
+from core.config import BINGX_API_KEY, BINGX_API_SECRET, CORE_PAIRS, MEMECOIN_V2_LIMIT
 
 class ExchangeClientBingX:
     def __init__(self):

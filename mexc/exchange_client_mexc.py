@@ -1,7 +1,7 @@
 import asyncio
 import ccxt.async_support as ccxt
 import pandas as pd
-from config import MEXC_API_KEY, MEXC_API_SECRET, CORE_PAIRS, MEMECOIN_V2_LIMIT
+from core.config import MEXC_API_KEY, MEXC_API_SECRET, CORE_PAIRS, MEMECOIN_V2_LIMIT
 
 class ExchangeClient:
     def __init__(self):

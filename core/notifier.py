@@ -1,6 +1,6 @@
 from aiogram import Bot
-from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
-from smart_engine import Regime, MTFVerdict
+from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.smart_engine import Regime, MTFVerdict
 import asyncio
 
 class Notifier:

@@ -1,12 +1,12 @@
 import asyncio
 import time
 from aiogram import Bot
-from exchange_client_bingx import ExchangeClientBingX
-from smc_analyzer import SMCAnalyzer
-from spike_scanner import SpikeScanner
-from smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
-from notifier import Notifier
-from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTO_TRADING_ENABLED, BINGX_WHITELIST, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE
+from bingx.exchange_client_bingx import ExchangeClientBingX
+from core.smc_analyzer import SMCAnalyzer
+from core.spike_scanner import SpikeScanner
+from core.smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
+from core.notifier import Notifier
+from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTO_TRADING_ENABLED, BINGX_WHITELIST, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE
 
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
 
@@ -189,11 +189,11 @@ async def autotrade_scanner_loop():
                     
                     # --- Медленная торговля SMC Сетапов ---
                     allow_smc = False
-                    if symbol == "BTC/USDT" and tf in ["4h", "1d"]:
+                    if symbol == "BTC/USDT:USDT" and tf in ["4h", "1d"]:
                         allow_smc = True
-                    elif symbol == "ETH/USDT" and tf == "30m":
+                    elif symbol == "ETH/USDT:USDT" and tf == "30m":
                         allow_smc = True
-                    elif symbol == "SOL/USDT" and tf == "15m":
+                    elif symbol == "SOL/USDT:USDT" and tf == "15m":
                         allow_smc = True
                         
                     if allow_smc:
