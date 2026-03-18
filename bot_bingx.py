@@ -6,7 +6,7 @@ from smc_analyzer import SMCAnalyzer
 from spike_scanner import SpikeScanner
 from smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
 from notifier import Notifier
-from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTO_TRADING_ENABLED, BINGX_WHITELIST, BINGX_RISK_PER_TRADE_PERCENT, BINGX_LEVERAGE
+from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTO_TRADING_ENABLED, BINGX_WHITELIST, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE
 
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
 
@@ -44,10 +44,10 @@ async def execute_smart_grid(symbol, tf, setup, verdict, is_spike=False):
             await notifier.send_message(msg)
             return False
             
-        total_risk_amount_usdt = balance_usdt * (BINGX_RISK_PER_TRADE_PERCENT / 100.0)
+        total_risk_amount_usdt = BINGX_MARGIN_PER_ORDER * 3.0
         
         # Разделяем риск на 3 ордера (сетку)
-        order_risk_usdt = total_risk_amount_usdt / 3.0
+        order_risk_usdt = BINGX_MARGIN_PER_ORDER
         position_size_usdt_per_order = order_risk_usdt * BINGX_LEVERAGE
         
         current_price = await exchange.fetch_ticker_price(symbol)
@@ -187,37 +187,38 @@ async def autotrade_scanner_loop():
                                     await asyncio.sleep(2)
                                     continue # Если вошли по спайку, пропускаем SMC анализ для этого таймфрейма, чтобы избежать дублей
                     
-                    # --- Медленная торговля SMC Сетапов ---
-                    smc_results = smc_analyzer.analyze_tf(df)
-                    setup = smc_analyzer.find_setup(smc_results)
-                    
-                    if setup:
-                        score = smart_engine.analyze_context(df, symbol, setup['type'])
-                        if score.signal == SignalType.NO_TRADE:
-                            continue
-                            
-                        # MTF V11 Verification
-                        dfs_dict = await fetch_mtf_context(symbol)
-                        verdict = mtf_engine.analyze(dfs_dict)
+                    # --- Медленная торговля SMC Сетапов (Только 4h, 1d) ---
+                    if tf in ["4h", "1d"]:
+                        smc_results = smc_analyzer.analyze_tf(df)
+                        setup = smc_analyzer.find_setup(smc_results)
                         
-                        # Строгий риск менеджмент: НЕТ торговли при низкой уверенности
-                        if verdict.setup_type.name == "NO_TRADE" or verdict.confidence < 60:
-                            continue
+                        if setup:
+                            score = smart_engine.analyze_context(df, symbol, setup['type'])
+                            if score.signal == SignalType.NO_TRADE:
+                                continue
+                                
+                            # MTF V11 Verification
+                            dfs_dict = await fetch_mtf_context(symbol)
+                            verdict = mtf_engine.analyze(dfs_dict)
                             
-                        # Если анализ выявил сильные конфликты с дневкой
-                        serious_risks = [f for f in verdict.risk_flags if 'countertrend' in f or 'choppy' in f]
-                        if serious_risks:
-                            print(f"[BingX AutoTrader] Скип {symbol}. Слишком опасно: {serious_risks}")
-                            continue
+                            # Строгий риск менеджмент: НЕТ торговли при низкой уверенности
+                            if verdict.setup_type.name == "NO_TRADE" or verdict.confidence < 60:
+                                continue
+                                
+                            # Если анализ выявил сильные конфликты с дневкой
+                            serious_risks = [f for f in verdict.risk_flags if 'countertrend' in f or 'choppy' in f]
+                            if serious_risks:
+                                print(f"[BingX AutoTrader] Скип {symbol}. Слишком опасно: {serious_risks}")
+                                continue
+                                
+                            setup_key = f"{symbol}_{tf}_{setup['type']}"
+                            last_time = last_setup_alert.get(setup_key, 0)
                             
-                        setup_key = f"{symbol}_{tf}_{setup['type']}"
-                        last_time = last_setup_alert.get(setup_key, 0)
-                        
-                        if current_time - last_time > SETUP_COOLDOWN:
-                            executed = await execute_smart_grid(symbol, tf, setup, verdict, is_spike=False)
-                            if executed:
-                                last_setup_alert[setup_key] = current_time
-                                await asyncio.sleep(2)
+                            if current_time - last_time > SETUP_COOLDOWN:
+                                executed = await execute_smart_grid(symbol, tf, setup, verdict, is_spike=False)
+                                if executed:
+                                    last_setup_alert[setup_key] = current_time
+                                    await asyncio.sleep(2)
 
                 await asyncio.sleep(0.5)
 

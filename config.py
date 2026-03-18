@@ -45,5 +45,5 @@ LEVERAGE = 10
 
 # BingX AutoTrader Risk Management
 BINGX_WHITELIST = ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
-BINGX_RISK_PER_TRADE_PERCENT = 0.5 # 0.5% of free balance
-BINGX_LEVERAGE = 5 # Safe low leverage
+BINGX_MARGIN_PER_ORDER = 1.0 # 1 USDT жесткой маржи на каждый из 3 ордеров в сетке (Итого риск на сделку 3$)
+BINGX_LEVERAGE = 15 # Плечо x15 обеспечивает минимальный объем сделки (1$ * 15 = 15$), пробивающий лимиты BingX
