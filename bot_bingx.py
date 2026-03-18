@@ -39,6 +39,8 @@ async def execute_smart_grid(symbol, tf, setup, verdict, is_spike=False):
         
     try:
         balance_usdt = await exchange.fetch_balance_usdt()
+        order_risk_usdt = setup.get('risk', BINGX_MARGIN_PER_ORDER)
+        
         if balance_usdt < 10.0:
             msg = f"⚠️ [BingX] Недостаточно баланса для сделки по {symbol}. Текущий баланс: {balance_usdt:.2f} USDT"
             await notifier.send_message(msg)
@@ -46,8 +48,7 @@ async def execute_smart_grid(symbol, tf, setup, verdict, is_spike=False):
             
         total_risk_amount_usdt = BINGX_MARGIN_PER_ORDER * 3.0
         
-        # Разделяем риск на 3 ордера (сетку)
-        order_risk_usdt = BINGX_MARGIN_PER_ORDER
+        total_risk_amount_usdt = order_risk_usdt * 3.0
         position_size_usdt_per_order = order_risk_usdt * BINGX_LEVERAGE
         
         current_price = await exchange.fetch_ticker_price(symbol)
@@ -142,11 +143,16 @@ async def autotrade_scanner_loop():
 
     while True:
         try:
-            symbols = BINGX_WHITELIST
-            print(f"[BingX AutoTrader] Фоновый скан белого списка: {symbols}...")
+            top_pairs = await exchange.get_top_pairs()
+            # Убедимся, что наши основные пары тоже есть в списке для сканирования 
+            symbols = list(set(BINGX_WHITELIST + top_pairs))
+            print(f"[BingX AutoTrader] Фоновый скан {len(symbols)} рабочих пар...")
             current_time = time.time()
 
             for i, symbol in enumerate(symbols):
+                is_major = any(coin in symbol for coin in ['BTC', 'ETH', 'SOL'])
+                order_risk = BINGX_MARGIN_PER_ORDER if is_major else BINGX_ALTCOIN_MARGIN
+                
                 for tf in ["15m", "30m", "1h", "4h", "1d"]:
                     df = await exchange.fetch_ohlcv(symbol, tf)
                     if df.empty:
@@ -176,7 +182,8 @@ async def autotrade_scanner_loop():
                                     'type': side,
                                     'entry': entry_price,
                                     'stop_loss': stop_loss,
-                                    'take_profit': take_profit
+                                    'take_profit': take_profit,
+                                    'risk': order_risk
                                 }
                                 
                                 print(f"[BingX AutoTrader] 🔥 ОБНАРУЖЕН {'ПАМП' if side == 'LONG' else 'ДАМП'} ПО {symbol}! Вход {side} по тренду импульса.")
@@ -195,14 +202,22 @@ async def autotrade_scanner_loop():
                         allow_smc = True
                     elif symbol == "SOL/USDT:USDT" and tf == "15m":
                         allow_smc = True
+                    elif not is_major and tf == "1h":
+                        # Разрешаем альткоинам искать сетапы на стабильном 1h таймфрейме
+                        allow_smc = True
                         
                     if allow_smc:
                         smc_results = smc_analyzer.analyze_tf(df)
                         setup = smc_analyzer.find_setup(smc_results)
                         
                         if setup:
+                            setup['risk'] = order_risk
                             score = smart_engine.analyze_context(df, symbol, setup['type'])
                             if score.signal == SignalType.NO_TRADE:
+                                continue
+                                
+                            # Жесткий фильтр V9: Уверенность должна быть >= 70
+                            if score.confidence < 70:
                                 continue
                                 
                             # MTF V11 Verification
