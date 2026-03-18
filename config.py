@@ -3,9 +3,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# MEXC API Credentials
+# MEXC API Credentials (Bot 1 - Signals)
 MEXC_API_KEY = os.getenv("MEXC_API_KEY", "")
 MEXC_API_SECRET = os.getenv("MEXC_API_SECRET", "")
+
+# BingX API Credentials (Bot 2 - AutoTrading)
+BINGX_API_KEY = os.getenv("BINGX_API_KEY", "")
+BINGX_API_SECRET = os.getenv("BINGX_API_SECRET", "")
+
+# AutoTrading Master Switch
+AUTO_TRADING_ENABLED = os.getenv("AUTO_TRADING_ENABLED", "False").lower() in ('true', '1', 't')
 
 # Telegram Bot Credentials
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
