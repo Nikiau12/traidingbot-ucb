@@ -3,6 +3,7 @@ import time
 from aiogram import Bot
 from exchange_client_bingx import ExchangeClientBingX
 from smc_analyzer import SMCAnalyzer
+from spike_scanner import SpikeScanner
 from smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
 from notifier import Notifier
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTO_TRADING_ENABLED, BINGX_WHITELIST, BINGX_RISK_PER_TRADE_PERCENT, BINGX_LEVERAGE
@@ -11,6 +12,7 @@ bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
 
 exchange = ExchangeClientBingX()
 smc_analyzer = SMCAnalyzer()
+spike_scanner = SpikeScanner()
 smart_engine = SmartContextEngine()
 mtf_engine = MTFFusionEngine()
 
@@ -111,6 +113,42 @@ async def autotrade_scanner_loop():
                     if df.empty:
                         continue
                         
+                    # --- Торговля Импульсов (Пампы/Дампы) на 15m ---
+                    if tf == "15m":
+                        spike = spike_scanner.scan(df)
+                        if spike:
+                            spike_key = f"{symbol}_{tf}_{spike['direction']}_SPIKE"
+                            last_time = last_setup_alert.get(spike_key, 0)
+                            
+                            if current_time - last_time > SETUP_COOLDOWN:
+                                entry_price = float(df.iloc[-1]['close'])
+                                open_price = float(df.iloc[-1]['open'])
+                                
+                                if spike['direction'] == 'up':
+                                    side = 'LONG'
+                                    stop_loss = open_price * 0.999 # Стоп за началом импульса
+                                    take_profit = entry_price + (entry_price - stop_loss) * 2.0
+                                else:
+                                    side = 'SHORT'
+                                    stop_loss = open_price * 1.001
+                                    take_profit = entry_price - (stop_loss - entry_price) * 2.0
+                                    
+                                setup_spike = {
+                                    'type': side,
+                                    'entry': entry_price,
+                                    'stop_loss': stop_loss,
+                                    'take_profit': take_profit
+                                }
+                                
+                                print(f"[BingX AutoTrader] 🔥 ОБНАРУЖЕН {'ПАМП' if side == 'LONG' else 'ДАМП'} ПО {symbol}! Вход {side} по тренду импульса.")
+                                
+                                executed = await execute_trade(symbol, "15m_SPIKE", setup_spike, None)
+                                if executed:
+                                    last_setup_alert[spike_key] = current_time
+                                    await asyncio.sleep(2)
+                                    continue # Если вошли по спайку, пропускаем SMC анализ для этого таймфрейма, чтобы избежать дублей
+                    
+                    # --- Медленная торговля SMC Сетапов ---
                     smc_results = smc_analyzer.analyze_tf(df)
                     setup = smc_analyzer.find_setup(smc_results)
                     
