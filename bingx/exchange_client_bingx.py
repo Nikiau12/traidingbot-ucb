@@ -68,7 +68,9 @@ class ExchangeClientBingX:
         except Exception:
             pass # Isolated might already be set
         try:
-            await self.exchange.set_leverage(leverage, symbol)
+            # BingX setLeverage requires the 'side' argument for hedge mode
+            await self.exchange.set_leverage(leverage, symbol, params={'side': 'LONG'})
+            await self.exchange.set_leverage(leverage, symbol, params={'side': 'SHORT'})
             print(f"[BingX] Успешно установлено плечо x{leverage} (Isolated) для {symbol}")
         except Exception as e:
             print(f"[BingX] Не удалось автоматически сменить плечо для {symbol}: {e}")
