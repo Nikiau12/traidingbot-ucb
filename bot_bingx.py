@@ -189,11 +189,11 @@ async def autotrade_scanner_loop():
                     
                     # --- Медленная торговля SMC Сетапов ---
                     allow_smc = False
-                    if tf in ["4h", "1d"]:
+                    if symbol == "BTC/USDT" and tf in ["4h", "1d"]:
                         allow_smc = True
-                    elif tf == "30m" and symbol == "ETH/USDT":
+                    elif symbol == "ETH/USDT" and tf == "30m":
                         allow_smc = True
-                    elif tf == "15m" and symbol == "SOL/USDT":
+                    elif symbol == "SOL/USDT" and tf == "15m":
                         allow_smc = True
                         
                     if allow_smc:
