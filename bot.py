@@ -142,7 +142,7 @@ async def handle_setup_request(message: types.Message, coin: str):
     await message.reply(f"🔍 Анализирую {symbol} по стратегии SMC...")
     try:
         found = False
-        for tf in ["15m", "1h", "4h"]:
+        for tf in ["4h", "1d"]:
             df = await exchange.fetch_ohlcv(symbol, tf)
             if df.empty:
                 continue
@@ -162,7 +162,7 @@ async def handle_setup_request(message: types.Message, coin: str):
                         found = True
         
         if not found:
-            await message.reply(f"🤷‍♂️ В данный момент нет свежих сетапов SMC по {symbol} на таймфреймах 15m, 1h, 4h.")
+            await message.reply(f"🤷‍♂️ В данный момент нет свежих сетапов SMC по {symbol} на старших таймфреймах (4h, 1d).")
             
     except Exception as e:
         await message.reply(f"❌ Ошибка при анализе: {e}")
@@ -258,25 +258,26 @@ async def market_scanner_loop():
             for i, symbol in enumerate(symbols):
                 is_smc_eligible = (i < TOP_COINS_LIMIT) or (symbol in CORE_PAIRS)
 
-                for tf in ["15m", "1h", "4h"]:
+                for tf in ["15m", "4h", "1d"]:
                     df = await exchange.fetch_ohlcv(symbol, tf)
                     if df.empty:
                         continue
                     
-                    # ----- Мониторинг всплесков -----
-                    spike = spike_scanner.scan(df)
-                    if spike:
-                        spike_key = f"{symbol}_{tf}_{spike['direction']}"
-                        last_time = last_spike_alert.get(spike_key, 0)
-                        
-                        if current_time - last_time > SPIKE_COOLDOWN:
-                            msg = notifier.format_spike_alert(symbol, tf, spike)
-                            await notifier.send_message(msg)
-                            last_spike_alert[spike_key] = current_time # Обновляем кэш
-                            await asyncio.sleep(0.1)
+                    # ----- Мониторинг всплесков (только на 15m) -----
+                    if tf == "15m":
+                        spike = spike_scanner.scan(df)
+                        if spike:
+                            spike_key = f"{symbol}_{tf}_{spike['direction']}"
+                            last_time = last_spike_alert.get(spike_key, 0)
+                            
+                            if current_time - last_time > SPIKE_COOLDOWN:
+                                msg = notifier.format_spike_alert(symbol, tf, spike)
+                                await notifier.send_message(msg)
+                                last_spike_alert[spike_key] = current_time # Обновляем кэш
+                                await asyncio.sleep(0.1)
 
-                    # ----- Мониторинг SMC паттернов -----
-                    if is_smc_eligible:
+                    # ----- Мониторинг SMC паттернов (только на 4h и 1d) -----
+                    if tf in ["4h", "1d"] and is_smc_eligible:
                         smc_results = smc_analyzer.analyze_tf(df)
                         setup = smc_analyzer.find_setup(smc_results)
                         
