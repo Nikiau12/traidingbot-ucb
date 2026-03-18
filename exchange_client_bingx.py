@@ -126,17 +126,21 @@ class ExchangeClientBingX:
         """
         Create a market order (LONG/SHORT) on BingX futures with explicit sl and tp.
         `side` should be 'buy' or 'sell'.
+        Handles Hedge mode by passing 'positionSide'.
         """
         try:
+            position_side = 'LONG' if side.lower() == 'buy' else 'SHORT'
+            
             # BingX CCXT expects stopLoss and takeProfit in the params dictionary
             params = {
+                'positionSide': position_side,
                 'stopLoss': {
                     'triggerPrice': stop_loss,
-                    'type': 'market'
+                    'type': 'STOP_MARKET'
                 },
                 'takeProfit': {
                     'triggerPrice': take_profit,
-                    'type': 'market'
+                    'type': 'TAKE_PROFIT_MARKET'
                 }
             }
             # BingX can require positionMode = 'one-way' or 'hedge', standard parameter handling:
