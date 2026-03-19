@@ -6,7 +6,8 @@ from core.smc_analyzer import SMCAnalyzer
 from core.spike_scanner import SpikeScanner
 from core.smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
 from core.notifier import Notifier
-from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTO_TRADING_ENABLED, BINGX_WHITELIST, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE, BINGX_ALTCOIN_MARGIN, BINGX_MAX_OPEN_POSITIONS
+from core.position_tracker import PositionTracker
+from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTO_TRADING_ENABLED, BINGX_WHITELIST, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE, BINGX_ALTCOIN_MARGIN, BINGX_MAX_OPEN_POSITIONS, BINGX_ALTCOIN_V9_MIN_SCORE, BINGX_BTC_TREND_FILTER
 
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
 
@@ -66,10 +67,25 @@ async def execute_smart_grid(symbol, tf, setup, verdict, is_spike=False):
         
         orders_placed = 0
         grid_messages = []
+        is_major = any(coin in symbol for coin in ['BTC', 'ETH', 'SOL'])
         
-        if is_spike:
+        if not is_major:
+            # АЛЬТКОИН СНАЙПЕР (1 Market ордер с увеличенным TP 1:3)
+            # Прибыль покрывает стоп в 3 раза
+            tp = entry_price + (distance_to_sl * 3.0) if side == 'buy' else entry_price - (distance_to_sl * 3.0)
+            amount_coin = position_size_usdt_per_order / current_price
+            
+            order = await exchange.create_market_order_with_sl_tp(
+                symbol=symbol, side=side, amount=amount_coin, stop_loss=stop_loss, take_profit=tp
+            )
+            if order:
+                orders_placed += 1
+                grid_messages.append(f"└ 🎯 Снайпер (Market): {position_size_usdt_per_order:.1f}$, TP={tp:.4f} (1:3)")
+                total_risk_amount_usdt = order_risk_usdt # На альты тратится только 1 пуля
+                
+        elif is_spike:
             # Для Спайков: 3 Market ордера с одинаковым TP (RR 1:2)
-            tp = entry_price + (entry_price - stop_loss) * 2.0 if side == 'buy' else entry_price - (stop_loss - entry_price) * 2.0
+            tp = entry_price + (distance_to_sl * 2.0) if side == 'buy' else entry_price - (distance_to_sl * 2.0)
             
             for i in range(3):
                 amount_coin = position_size_usdt_per_order / current_price
@@ -117,10 +133,16 @@ async def execute_smart_grid(symbol, tf, setup, verdict, is_spike=False):
                 
         if orders_placed > 0:
             grid_text = "\n".join(grid_messages)
+            
+            strategy_name = ""
+            if not is_major: strategy_name = "Снайпер (1 Market x 1:3)"
+            elif is_spike: strategy_name = "Импульс (Market x3)"
+            else: strategy_name = "SMC (Market + 2 Limits)"
+            
             msg = (
-                f"🤖 <b>[SMART GRID ВЫСТАВЛЕН - BINGX]</b> 🤖\n\n"
+                f"🤖 <b>[БИНГКС ИСПОЛНЕНИЕ]</b> 🤖\n\n"
                 f"Монета: <b>{symbol}</b> | Направление: {'🟢 LONG' if side == 'buy' else '🔴 SHORT'}\n"
-                f"Стратегия: {'Импульс (Market x3)' if is_spike else 'SMC (Market + 2 Limits)'}\n"
+                f"Стратегия: {strategy_name}\n"
                 f"Общий риск: {total_risk_amount_usdt:.2f} USDT (Плечо: x{BINGX_LEVERAGE})\n"
                 f"Единый Stop-Loss: {stop_loss:.5f}\n\n"
                 f"<b>Структура сетки:</b>\n"
@@ -157,12 +179,25 @@ async def autotrade_scanner_loop():
             # Убедимся, что наши основные пары тоже есть в списке для сканирования 
             symbols = list(set(BINGX_WHITELIST + top_pairs))
             print(f"[BingX AutoTrader] Фоновый скан {len(symbols)} рабочих пар...")
+            
+            # Получаем тренд BTC для синхронизации альткоинов
+            btc_bullish = True
+            if BINGX_BTC_TREND_FILTER:
+                try:
+                    df_btc = await exchange.fetch_ohlcv('BTC/USDT:USDT', '1h', limit=5)
+                    if not df_btc.empty and len(df_btc) > 2:
+                        btc_bullish = df_btc['close'].iloc[-1] > df_btc['close'].iloc[0]
+                except Exception as e:
+                    print(f"Ошибка проверки тренда BTC: {e}")
+                    
             current_time = time.time()
 
             for i, symbol in enumerate(symbols):
                 is_major = any(coin in symbol for coin in ['BTC', 'ETH', 'SOL'])
                 order_risk = BINGX_MARGIN_PER_ORDER if is_major else BINGX_ALTCOIN_MARGIN
                 
+                # Check BTC trend for spikes
+                import pandas as pd
                 for tf in ["15m", "30m", "1h", "4h", "1d"]:
                     df = await exchange.fetch_ohlcv(symbol, tf)
                     if df.empty:
@@ -226,10 +261,20 @@ async def autotrade_scanner_loop():
                             if score.signal == SignalType.NO_TRADE:
                                 continue
                                 
-                            # Жесткий фильтр V9: Уверенность должна быть >= 70
-                            if score.confidence < 70:
-                                continue
+                            # Жесткий фильтр V9
+                            if is_major:
+                                if score.confidence < 70: continue
+                            else:
+                                if score.confidence < BINGX_ALTCOIN_V9_MIN_SCORE: continue
                                 
+                                # Фильтр BTC Корреляции для альткоинов
+                                if BINGX_BTC_TREND_FILTER:
+                                    if setup['type'] == 'LONG' and not btc_bullish:
+                                        print(f"[BingX AutoTrader] 🚫 Пропуск LONG {symbol}: Биткоин в локальном падении.")
+                                        continue
+                                    if setup['type'] == 'SHORT' and btc_bullish:
+                                        print(f"[BingX AutoTrader] 🚫 Пропуск SHORT {symbol}: Биткоин в локальном росте.")
+                                        continue
                             # MTF V11 Verification
                             dfs_dict = await fetch_mtf_context(symbol)
                             verdict = mtf_engine.analyze(dfs_dict)
@@ -276,6 +321,9 @@ async def main():
         print("[BingX] Принудительная установка плеча для рабочих торговых пар...")
         for symbol in BINGX_WHITELIST:
             await exchange.set_leverage(symbol, BINGX_LEVERAGE)
+            
+        tracker = PositionTracker(exchange)
+        asyncio.create_task(tracker.track_loop())
         
         await autotrade_scanner_loop()
     finally:

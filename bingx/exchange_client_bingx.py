@@ -97,12 +97,13 @@ class ExchangeClientBingX:
     async def get_top_pairs(self):
         """Fetches the top N USDT perpetual pairs by 24h quote volume."""
         try:
+            from core.config import BINGX_ALTCOIN_MIN_VOLUME
             tickers = await self.exchange.fetch_tickers()
             usdt_pairs = []
             for symbol, ticker in tickers.items():
                 if symbol.endswith('USDT') or symbol.endswith('USDT:USDT'):
-                    quote_volume = ticker.get('quoteVolume', 0)
-                    if quote_volume is not None:
+                    quote_volume = float(ticker.get('quoteVolume', 0) or 0)
+                    if quote_volume >= BINGX_ALTCOIN_MIN_VOLUME:
                         usdt_pairs.append((symbol, quote_volume))
             
             # Sort by volume descending
