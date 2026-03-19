@@ -134,7 +134,11 @@ async def execute_smart_grid(symbol, tf, setup, verdict, is_spike=False):
             return False
             
     except Exception as e:
-        print(f"Ошибка выставления Smart Grid: {e}")
+        error_str = str(e).lower()
+        if 'amount' in error_str or 'volume' in error_str or 'min' in error_str or 'precision' in error_str:
+            print(f"[BingX AutoTrader] ⏩ Пропуск {symbol}: Выделенной маржи в ~{order_risk_usdt}$ недостаточно по лимитам биржи.")
+        else:
+            print(f"Ошибка выставления Smart Grid: {e}")
         return False
 
 async def autotrade_scanner_loop():
@@ -164,8 +168,8 @@ async def autotrade_scanner_loop():
                     if df.empty:
                         continue
                         
-                    # --- Торговля Импульсов (Пампы/Дампы) на 15m ---
-                    if tf == "15m":
+                    # --- Торговля Импульсов (Пампы/Дампы) на 30m ---
+                    if tf == "30m":
                         spike = spike_scanner.scan(df)
                         if spike:
                             spike_key = f"{symbol}_{tf}_{spike['direction']}_SPIKE"
@@ -192,9 +196,9 @@ async def autotrade_scanner_loop():
                                     'risk': order_risk
                                 }
                                 
-                                print(f"[BingX AutoTrader] 🔥 ОБНАРУЖЕН {'ПАМП' if side == 'LONG' else 'ДАМП'} ПО {symbol}! Вход {side} по тренду импульса.")
+                                print(f"[BingX AutoTrader] 🔥 ОБНАРУЖЕН {'ПАМП' if side == 'LONG' else 'ДАМП'} ПО {symbol} (30m)! Вход {side} по тренду импульса.")
                                 
-                                executed = await execute_smart_grid(symbol, "15m_SPIKE", setup_spike, None, is_spike=True)
+                                executed = await execute_smart_grid(symbol, "30m_SPIKE", setup_spike, None, is_spike=True)
                                 if executed:
                                     last_setup_alert[spike_key] = current_time
                                     await asyncio.sleep(2)
