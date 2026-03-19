@@ -47,7 +47,7 @@ LEVERAGE = 10
 BINGX_WHITELIST = ["BTC/USDT:USDT", "ETH/USDT:USDT"]
 BINGX_MAX_OPEN_POSITIONS = 5 # Strict limit on concurrent open trades
 BINGX_MARGIN_PER_ORDER = 2.0 # 2 USDT жесткой маржи на каждый из 3 ордеров в сетке (Итого риск на сделку 6$)
-BINGX_ALTCOIN_MARGIN = 0.5 # 50 cents rigid margin for altcoins
+BINGX_ALTCOIN_MARGIN = 2.0 # 2.0 USDT margin for altcoins
 BINGX_ALTCOIN_V9_MIN_SCORE = 80 # Усиленный фильтр для альткоинов V9 >= 80
 BINGX_ALTCOIN_MIN_VOLUME = 30000000 # Ликвидность: > 30M USDT суточного объема
 BINGX_BTC_TREND_FILTER = True # Включить корреляцию с биткоином
