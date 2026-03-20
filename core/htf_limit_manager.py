@@ -26,105 +26,112 @@ class HTFLimitManager:
             return "BEARISH"
         return "CHOPPY"
 
+    def get_pois(self, df, current_price):
+        from smartmoneyconcepts import smc
+        fvg_data = smc.fvg(df)
+        df_fvg = df.copy()
+        for col in ['FVG', 'Top', 'Bottom', 'MitigatedIndex']:
+            df_fvg[col] = fvg_data[col]
+
+        pois = []
+        active_bulls = df_fvg[(df_fvg['FVG'] == 1) & (df_fvg['MitigatedIndex'] == 0)]
+        valid_bulls = active_bulls[active_bulls['Top'] < current_price]
+        if not valid_bulls.empty:
+            best = valid_bulls.loc[valid_bulls['Top'].idxmax()]
+            pois.append({
+                'direction': 'LONG',
+                'entry': best['Top'],
+                'sl': best['Bottom'] - (best['Top'] - best['Bottom']) * 0.1
+            })
+
+        active_bears = df_fvg[(df_fvg['FVG'] == -1) & (df_fvg['MitigatedIndex'] == 0)]
+        valid_bears = active_bears[active_bears['Bottom'] > current_price]
+        if not valid_bears.empty:
+            best = valid_bears.loc[valid_bears['Bottom'].idxmin()]
+            pois.append({
+                'direction': 'SHORT',
+                'entry': best['Bottom'],
+                'sl': best['Top'] + (best['Top'] - best['Bottom']) * 0.1
+            })
+            
+        return pois
+
     async def run_loop(self):
-        print("🚀 [HTF Sniper] Запущен фоновый сканер старших таймфреймов для BTC/ETH (Лимитные Свинг-ордера)")
-        await asyncio.sleep(5) # Delay startup
+        print("🚀 [HTF Sniper] Запущен агрессивный двусторонний сканер (Лимитные Капканы)")
+        await asyncio.sleep(5)
         
         while True:
             try:
                 if not AUTO_TRADING_ENABLED:
-                    await asyncio.sleep(3600)
+                    await asyncio.sleep(self.interval)
                     continue
 
                 for symbol in self.symbols:
                     try:
                         print(f"[HTF Sniper] Анализ {symbol}...")
-                        trend = await self.get_macro_trend(symbol)
-                        if trend == "CHOPPY":
-                            print(f"[HTF Sniper] {symbol} в распиле на 1D. Пропуск.")
-                            continue
-
-                        df_4h = await self.exchange.fetch_ohlcv(symbol, "4h", limit=200)
                         current_price = await self.exchange.fetch_ticker_price(symbol)
                         
-                        fvg_data = smc.fvg(df_4h)
-                        df_fvg = df_4h.copy()
-                        for col in ['FVG', 'Top', 'Bottom', 'MitigatedIndex']:
-                            df_fvg[col] = fvg_data[col]
-
-                        poi = None
-                        direction = ""
-
-                        if trend == "BULLISH":
-                            # Поиск Бычьих FVG
-                            active_fvgs = df_fvg[(df_fvg['FVG'] == 1) & (df_fvg['MitigatedIndex'] == 0)]
-                            valid = active_fvgs[active_fvgs['Top'] < current_price]
-                            if not valid.empty:
-                                best = valid.loc[valid['Top'].idxmax()]
-                                poi = {
-                                    'entry': best['Top'],
-                                    'sl': best['Bottom'] - (best['Top'] - best['Bottom']) * 0.1 # Чуть ниже FVG
-                                }
-                            direction = "LONG"
-                        elif trend == "BEARISH":
-                            # Поиск Медвежьих FVG
-                            active_fvgs = df_fvg[(df_fvg['FVG'] == -1) & (df_fvg['MitigatedIndex'] == 0)]
-                            valid = active_fvgs[active_fvgs['Bottom'] > current_price]
-                            if not valid.empty:
-                                best = valid.loc[valid['Bottom'].idxmin()] # Ближайшее сопротивление
-                                poi = {
-                                    'entry': best['Bottom'],
-                                    'sl': best['Top'] + (best['Top'] - best['Bottom']) * 0.1 # Чуть выше FVG
-                                }
-                            direction = "SHORT"
-
-                        if not poi:
-                            print(f"[HTF Sniper] Не найдено активных 4H POI для {symbol} по тренду {trend}.")
-                            continue
-
-                        entry_price = poi['entry']
-                        stop_loss = float(poi['sl'])
+                        all_pois = []
                         
-                        if entry_price == stop_loss:
-                            continue
-                            
-                        distance_to_sl = abs(entry_price - stop_loss)
-                        if distance_to_sl / entry_price < 0.005: # Слишком узкий стоп (менее 0.5% движения)
-                            if direction == "LONG": stop_loss = entry_price * 0.99
-                            else: stop_loss = entry_price * 1.01
-                            distance_to_sl = abs(entry_price - stop_loss)
-                            
-                        tp_price = entry_price + (distance_to_sl * self.tp_ratio) if direction == "LONG" else entry_price - (distance_to_sl * self.tp_ratio)
+                        # 4H Analysis
+                        df_4h = await self.exchange.fetch_ohlcv(symbol, "4h", limit=200)
+                        pois_4h = self.get_pois(df_4h, current_price)
+                        for p in pois_4h: p['tf'] = "4h"
+                        all_pois.extend(pois_4h)
+                        
+                        # ETH 30m Analysis
+                        if symbol == "ETH/USDT:USDT":
+                            df_30m = await self.exchange.fetch_ohlcv(symbol, "30m", limit=200)
+                            pois_30m = self.get_pois(df_30m, current_price)
+                            for p in pois_30m: p['tf'] = "30m"
+                            all_pois.extend(pois_30m)
 
-                        # Обновление Ордеров!
                         # Отменяем старые LIMIT ордера по этой монете
                         open_orders = await self.exchange.exchange.fetch_open_orders(symbol)
                         limits = [o for o in open_orders if o['type'] == 'limit']
                         for o in limits:
                             await self.exchange.exchange.cancel_order(o['id'], symbol)
 
-                        # Ставим новый ордер
-                        position_coin_size = (self.risk_amount * BINGX_LEVERAGE) / entry_price
-                        side = 'buy' if direction == "LONG" else 'sell'
-                        
-                        order = await self.exchange.create_limit_order_with_sl_tp(
-                            symbol=symbol,
-                            side=side,
-                            amount=position_coin_size,
-                            price=entry_price,
-                            stop_loss=stop_loss,
-                            take_profit=tp_price
-                        )
-                        
-                        if order:
-                            msg = (f"🎯 <b>[HTF Снайпер - Установка Капкана]</b> 🎯\n\n"
-                                   f"Монета: <b>{symbol}</b> (4H Таймфрейм)\n"
-                                   f"Макро Тренд (1D): {trend}\n"
-                                   f"Направление: {'🟢 LONG' if direction == 'LONG' else '🔴 SHORT'}\n\n"
-                                   f"⏳ <b>Отложенный Limit-Ордер:</b> {entry_price:.4f}\n"
-                                   f"🛡 Stop-Loss (Ниже FVG): {stop_loss:.4f}\n"
-                                   f"💰 Take-Profit (1:3): {tp_price:.4f}\n\n"
-                                   f"Бот будет автоматически обновлять уровень ордера при смещении 4H структуры.")
+                        if not all_pois:
+                            print(f"[HTF Sniper] Не найдено активных POI для {symbol}.")
+                            continue
+
+                        # Расставляем новые капканы
+                        alert_messages = []
+                        for poi in all_pois:
+                            direction = poi['direction']
+                            tf = poi['tf']
+                            entry_price = poi['entry']
+                            stop_loss = float(poi['sl'])
+                            
+                            if entry_price == stop_loss: continue
+                                
+                            distance_to_sl = abs(entry_price - stop_loss)
+                            if distance_to_sl / entry_price < 0.005: # Слишком узкий стоп (менее 0.5% движения)
+                                if direction == "LONG": stop_loss = entry_price * 0.99
+                                else: stop_loss = entry_price * 1.01
+                                distance_to_sl = abs(entry_price - stop_loss)
+                                
+                            tp_price = entry_price + (distance_to_sl * self.tp_ratio) if direction == "LONG" else entry_price - (distance_to_sl * self.tp_ratio)
+
+                            position_coin_size = (self.risk_amount * BINGX_LEVERAGE) / entry_price
+                            side = 'buy' if direction == "LONG" else 'sell'
+                            
+                            order = await self.exchange.create_limit_order_with_sl_tp(
+                                symbol=symbol, side=side, amount=position_coin_size, 
+                                price=entry_price, stop_loss=stop_loss, take_profit=tp_price
+                            )
+                            
+                            if order:
+                                alert_messages.append(
+                                    f"• <b>{tf}</b> {'🟢 LONG' if direction == 'LONG' else '🔴 SHORT'}: Вход <b>{entry_price:.4f}</b> (SL: {stop_loss:.4f}, TP: {tp_price:.4f})"
+                                )
+
+                        if alert_messages:
+                            msg = (f"🎯 <b>[HTF Снайпер - Капканы Расставлены]</b> 🎯\n\n"
+                                   f"Монета: <b>{symbol}</b>\n"
+                                   f"Контртренд разрешен (Обе стороны).\n\n" + 
+                                   "\n".join(alert_messages))
                             await notifier.send_message(msg)
 
                     except Exception as e:
