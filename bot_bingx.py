@@ -263,7 +263,7 @@ async def autotrade_scanner_loop():
                                 
                             # Жесткий фильтр V9
                             if is_major:
-                                if score.confidence < 70: continue
+                                if score.confidence < 60: continue # Золотая середина: снизили с 70 до 60 для BTC/ETH
                             else:
                                 if score.confidence < BINGX_ALTCOIN_V9_MIN_SCORE: continue
                                 
@@ -280,11 +280,17 @@ async def autotrade_scanner_loop():
                             verdict = mtf_engine.analyze(dfs_dict)
                             
                             # Строгий риск менеджмент: НЕТ торговли при низкой уверенности
-                            if verdict.setup_type.name == "NO_TRADE" or verdict.confidence < 60:
+                            required_mtf = 50 if is_major else 60
+                            if verdict.setup_type.name == "NO_TRADE" or verdict.confidence < required_mtf:
                                 continue
                                 
                             # Если анализ выявил сильные конфликты с дневкой
-                            serious_risks = [f for f in verdict.risk_flags if 'countertrend' in f or 'choppy' in f]
+                            # Для BTC и ETH разрешаем торговать в консолидации (исключили choppy из блокировки)
+                            if is_major:
+                                serious_risks = [f for f in verdict.risk_flags if 'countertrend' in f]
+                            else:
+                                serious_risks = [f for f in verdict.risk_flags if 'countertrend' in f or 'choppy' in f]
+                                
                             if serious_risks:
                                 print(f"[BingX AutoTrader] Скип {symbol}. Слишком опасно: {serious_risks}")
                                 continue
