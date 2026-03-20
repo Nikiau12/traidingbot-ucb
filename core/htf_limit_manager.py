@@ -11,7 +11,7 @@ class HTFLimitManager:
     def __init__(self, exchange: ExchangeClientBingX):
         self.exchange = exchange
         self.symbols = ["BTC/USDT:USDT", "ETH/USDT:USDT"]
-        self.interval = 3600 # 1 hour
+        self.interval = 1800 # 30 минут
         self.risk_amount = BINGX_MARGIN_PER_ORDER
         self.tp_ratio = 3.0 # Risk:Reward 1:3
 
