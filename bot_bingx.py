@@ -7,6 +7,7 @@ from core.spike_scanner import SpikeScanner
 from core.smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
 from core.notifier import Notifier
 from core.position_tracker import PositionTracker
+from core.htf_limit_manager import HTFLimitManager
 from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTO_TRADING_ENABLED, BINGX_WHITELIST, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE, BINGX_ALTCOIN_MARGIN, BINGX_MAX_OPEN_POSITIONS, BINGX_ALTCOIN_V9_MIN_SCORE, BINGX_BTC_TREND_FILTER
 
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
@@ -193,6 +194,9 @@ async def autotrade_scanner_loop():
             current_time = time.time()
 
             for i, symbol in enumerate(symbols):
+                if symbol in ["BTC/USDT:USDT", "ETH/USDT:USDT"]:
+                    continue # Исключаем Мажоров из реактивного скальпинга. Они торгуются ЛИМИТАМИ в HTFLimitManager
+                    
                 is_major = any(coin in symbol for coin in ['BTC', 'ETH', 'SOL'])
                 order_risk = BINGX_MARGIN_PER_ORDER if is_major else BINGX_ALTCOIN_MARGIN
                 
@@ -330,6 +334,9 @@ async def main():
             
         tracker = PositionTracker(exchange)
         asyncio.create_task(tracker.track_loop())
+        
+        htf_sniper = HTFLimitManager(exchange)
+        asyncio.create_task(htf_sniper.run_loop())
         
         await autotrade_scanner_loop()
     finally:
