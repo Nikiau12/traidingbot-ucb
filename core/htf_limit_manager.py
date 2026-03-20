@@ -79,12 +79,11 @@ class HTFLimitManager:
                         for p in pois_4h: p['tf'] = "4h"
                         all_pois.extend(pois_4h)
                         
-                        # ETH 30m Analysis
-                        if symbol == "ETH/USDT:USDT":
-                            df_30m = await self.exchange.fetch_ohlcv(symbol, "30m", limit=200)
-                            pois_30m = self.get_pois(df_30m, current_price)
-                            for p in pois_30m: p['tf'] = "30m"
-                            all_pois.extend(pois_30m)
+                        # 30m Analysis
+                        df_30m = await self.exchange.fetch_ohlcv(symbol, "30m", limit=200)
+                        pois_30m = self.get_pois(df_30m, current_price)
+                        for p in pois_30m: p['tf'] = "30m"
+                        all_pois.extend(pois_30m)
 
                         # Отменяем старые LIMIT ордера по этой монете
                         open_orders = await self.exchange.exchange.fetch_open_orders(symbol)
