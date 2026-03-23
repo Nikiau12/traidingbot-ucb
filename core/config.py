@@ -51,5 +51,6 @@ BINGX_ALTCOIN_MARGIN = 2.0 # 2.0 USDT margin for altcoins
 BINGX_ALTCOIN_V9_MIN_SCORE = 80 # Усиленный фильтр для альткоинов V9 >= 80
 BINGX_ALTCOIN_MIN_VOLUME = 30000000 # Ликвидность: > 30M USDT суточного объема
 BINGX_BTC_TREND_FILTER = True # Включить корреляцию с биткоином
-BINGX_MOVE_SL_TO_BREAKEVEN = True # Автоматический перевод Стоп-Лосса в точку входа при достижении 30% ROE
+BINGX_MOVE_SL_TO_BREAKEVEN = True # Автоматический перевод Стоп-Лосса в точку входа при достижении 10% ROE
 BINGX_LEVERAGE = 15 # Плечо x15 обеспечивает минимальный объем сделки (1$ * 15 = 15$), пробивающий лимиты BingX
+BINGX_DAILY_LOSS_LIMIT = 3.0 # Если убыток за день больше 3$, бот прекращает открывать сделки до конца дня

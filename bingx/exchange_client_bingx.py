@@ -210,3 +210,27 @@ class ExchangeClientBingX:
         except Exception as e:
             print(f"[BingX] Error creating limit order for {symbol}: {e}")
             return None
+
+    async def fetch_daily_pnl(self) -> float:
+        """Fetch the total realized PNL + fees for the current UTC day."""
+        try:
+            import datetime
+            now = datetime.datetime.utcnow()
+            start_of_day = datetime.datetime(now.year, now.month, now.day)
+            start_ts = int(start_of_day.timestamp() * 1000)
+            
+            # Request income for the last 500 records (should easily cover 1 day of scalping)
+            res = await self.exchange.swapV2PrivateGetUserIncome({"limit": 500, "startTime": start_ts})
+            
+            total_pnl = 0.0
+            if isinstance(res, dict) and 'data' in res:
+                for item in res['data']:
+                    inc_time = int(item.get('time', 0))
+                    if inc_time >= start_ts:
+                        inc_type = item.get('incomeType', '')
+                        if inc_type in ['REALIZED_PNL', 'TRADING_FEE', 'FUNDING_FEE']:
+                            total_pnl += float(item.get('income', 0))
+            return total_pnl
+        except Exception as e:
+            print(f"[BingX] Error fetching daily PNL: {e}")
+            return 0.0

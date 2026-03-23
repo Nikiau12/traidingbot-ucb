@@ -170,6 +170,15 @@ async def autotrade_scanner_loop():
 
     while True:
         try:
+            # Проверка дневного лимита убытка
+            from core.config import BINGX_DAILY_LOSS_LIMIT
+            if BINGX_DAILY_LOSS_LIMIT > 0:
+                daily_pnl = await exchange.fetch_daily_pnl()
+                if daily_pnl <= -BINGX_DAILY_LOSS_LIMIT:
+                    print(f"[BingX AutoTrader] 🛑 ДНЕВНОЙ ЛИМИТ УБЫТКА ДОСТИГНУТ! Потери за сегодня: {daily_pnl:.2f} USDT. Отдыхаем 1 час...")
+                    await asyncio.sleep(3600)
+                    continue
+
             current_positions_count = await exchange.fetch_active_positions_count()
             if current_positions_count >= BINGX_MAX_OPEN_POSITIONS:
                 print(f"[BingX AutoTrader] Достигнут максиум открытых сделок ({current_positions_count}/{BINGX_MAX_OPEN_POSITIONS})! Сканирование приостановлено.")
