@@ -94,32 +94,20 @@ class ExchangeClientBingX:
         except Exception as e:
             print(f"[BingX] Не удалось автоматически сменить плечо для {symbol}: {e}")
 
-    async def get_top_pairs(self):
-        """Fetches the top N USDT perpetual pairs by 24h quote volume."""
-        try:
-            from core.config import BINGX_ALTCOIN_MIN_VOLUME
-            tickers = await self.exchange.fetch_tickers()
-            usdt_pairs = []
-            for symbol, ticker in tickers.items():
-                if symbol.endswith('USDT') or symbol.endswith('USDT:USDT'):
-                    quote_volume = float(ticker.get('quoteVolume', 0) or 0)
-                    if quote_volume >= BINGX_ALTCOIN_MIN_VOLUME:
-                        usdt_pairs.append((symbol, quote_volume))
-            
-            # Sort by volume descending
-            usdt_pairs.sort(key=lambda x: x[1], reverse=True)
-            
-            # Extract top N symbols
-            top_symbols = [pair[0] for pair in usdt_pairs[:MEMECOIN_V2_LIMIT]]
-            
-            # Ensure our CORE_PAIRS are included
-            # BingX might not have all CORE_PAIRS, so we filter them through validate_symbol later if needed
-            final_symbols = list(set(CORE_PAIRS + top_symbols))
-            return final_symbols
-            
-        except Exception as e:
-            print(f"Error fetching top pairs: {e}")
-            return CORE_PAIRS
+    async def get_validated_targets(self):
+        """Fetches the TARGET_COINS from config, formats them for BingX, and validates against active markets."""
+        from core.config import TARGET_COINS
+        await self.load_markets_if_needed()
+        
+        valid_symbols = []
+        for coin in TARGET_COINS:
+            target_symbol = f"{coin}/USDT:USDT"
+            if target_symbol in self.exchange.markets:
+                valid_symbols.append(target_symbol)
+            else:
+                print(f"[WARNING] Монета {coin} не найдена на фьючерсах BingX! Пропускаем.")
+                
+        return valid_symbols
 
     async def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int = 200) -> pd.DataFrame:
         """Fetch OHLCV historical data and return as a Pandas DataFrame."""

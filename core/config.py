@@ -21,8 +21,8 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 # Config variables
 TIMEFRAMES = ["15m", "1h", "4h", "1d", "1w"]
 
-# Core pairs (always monitor these)
-CORE_PAIRS = ["BTC/USDT", "ETH/USDT"]
+# Core Target Pairs (Единый источник правды)
+TARGET_COINS = ["BTC", "ETH", "SOL"]
 
 # How many top coins by volume to track for SMC main strategy
 TOP_COINS_LIMIT = 50
@@ -44,7 +44,6 @@ MAX_OPEN_POSITIONS = 3
 LEVERAGE = 10
 
 # BingX AutoTrader Risk Management
-BINGX_WHITELIST = ["BTC/USDT:USDT", "ETH/USDT:USDT", "SOL/USDT:USDT"]
 BINGX_MAX_OPEN_POSITIONS = 5 # Strict limit on concurrent open trades
 BINGX_MARGIN_PER_ORDER = 2.0 # 2 USDT жесткой маржи на каждый из 3 ордеров в сетке (Итого риск на сделку 6$)
 BINGX_ALTCOIN_MARGIN = 2.0 # 2.0 USDT margin for altcoins

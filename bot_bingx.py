@@ -185,9 +185,8 @@ async def autotrade_scanner_loop():
                 await asyncio.sleep(60)
                 continue
                 
-            # Отключаем сканирование топов: торгуем только разрешенными монетами из вайтлиста
-            symbols = BINGX_WHITELIST
-            print(f"[BingX AutoTrader] Фоновый скан {len(symbols)} рабочих пар...")
+            final_symbols = await exchange.get_validated_targets()
+            print(f"[BingX AutoTrader] 🔍 Начинаем сканирование {len(final_symbols)} рабочих пар: {final_symbols}")
             
             # Получаем тренд BTC для синхронизации альткоинов
             btc_bullish = True
@@ -201,9 +200,7 @@ async def autotrade_scanner_loop():
                     
             current_time = time.time()
 
-            for i, symbol in enumerate(symbols):
-                # Исключение мажоров удалено. Теперь они торгуются смарт-сеткой SMC
-                    
+            for symbol in final_symbols:
                 is_major = any(coin in symbol for coin in ['BTC', 'ETH', 'SOL'])
                 order_risk = BINGX_MARGIN_PER_ORDER if is_major else BINGX_ALTCOIN_MARGIN
                 
