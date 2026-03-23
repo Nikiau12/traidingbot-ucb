@@ -207,9 +207,8 @@ async def autotrade_scanner_loop():
                 is_major = any(coin in symbol for coin in ['BTC', 'ETH', 'SOL'])
                 order_risk = BINGX_MARGIN_PER_ORDER if is_major else BINGX_ALTCOIN_MARGIN
                 
-                # Check BTC trend for spikes
                 import pandas as pd
-                for tf in ["15m", "30m", "1h", "4h", "1d"]:
+                for tf in ["1h"]: # Торгуем только на 1h по просьбе пользователя
                     df = await exchange.fetch_ohlcv(symbol, tf)
                     if df.empty:
                         continue
