@@ -44,7 +44,7 @@ MAX_OPEN_POSITIONS = 3
 LEVERAGE = 10
 
 # BingX AutoTrader Risk Management
-BINGX_WHITELIST = ["BTC/USDT:USDT", "ETH/USDT:USDT"]
+BINGX_WHITELIST = ["BTC/USDT:USDT", "ETH/USDT:USDT", "SOL/USDT:USDT"]
 BINGX_MAX_OPEN_POSITIONS = 5 # Strict limit on concurrent open trades
 BINGX_MARGIN_PER_ORDER = 2.0 # 2 USDT жесткой маржи на каждый из 3 ордеров в сетке (Итого риск на сделку 6$)
 BINGX_ALTCOIN_MARGIN = 2.0 # 2.0 USDT margin for altcoins

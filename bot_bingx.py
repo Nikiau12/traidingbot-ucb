@@ -176,9 +176,8 @@ async def autotrade_scanner_loop():
                 await asyncio.sleep(60)
                 continue
                 
-            top_pairs = await exchange.get_top_pairs()
-            # Убедимся, что наши основные пары тоже есть в списке для сканирования 
-            symbols = list(set(BINGX_WHITELIST + top_pairs))
+            # Отключаем сканирование топов: торгуем только разрешенными монетами из вайтлиста
+            symbols = BINGX_WHITELIST
             print(f"[BingX AutoTrader] Фоновый скан {len(symbols)} рабочих пар...")
             
             # Получаем тренд BTC для синхронизации альткоинов
@@ -194,8 +193,7 @@ async def autotrade_scanner_loop():
             current_time = time.time()
 
             for i, symbol in enumerate(symbols):
-                if symbol in ["BTC/USDT:USDT", "ETH/USDT:USDT"]:
-                    continue # Исключаем Мажоров из реактивного скальпинга. Они торгуются ЛИМИТАМИ в HTFLimitManager
+                # Исключение мажоров удалено. Теперь они торгуются смарт-сеткой SMC
                     
                 is_major = any(coin in symbol for coin in ['BTC', 'ETH', 'SOL'])
                 order_risk = BINGX_MARGIN_PER_ORDER if is_major else BINGX_ALTCOIN_MARGIN
@@ -245,11 +243,8 @@ async def autotrade_scanner_loop():
                     
                     # --- Медленная торговля SMC Сетапов ---
                     allow_smc = False
-                    if symbol == "BTC/USDT:USDT" and tf in ["4h", "1d"]:
-                        allow_smc = True
-                    elif symbol == "ETH/USDT:USDT" and tf == "30m":
-                        allow_smc = True
-                    elif symbol == "SOL/USDT:USDT" and tf == "15m":
+                    if is_major and tf in ["15m", "30m", "1h", "4h"]:
+                        # Разрешаем мажорам искать сетапы на всех рабочих таймфреймах (в т.ч. быстрых 15m/30m)
                         allow_smc = True
                     elif not is_major and tf == "1h":
                         # Разрешаем альткоинам искать сетапы на стабильном 1h таймфрейме
@@ -289,9 +284,9 @@ async def autotrade_scanner_loop():
                                 continue
                                 
                             # Если анализ выявил сильные конфликты с дневкой
-                            # Для BTC и ETH разрешаем торговать в консолидации (исключили choppy из блокировки)
                             if is_major:
-                                serious_risks = [f for f in verdict.risk_flags if 'countertrend' in f]
+                                # Ослабляем фильтр: убрана блокировка countertrend для мажоров, чтобы сетка ставилась чаще
+                                serious_risks = []
                             else:
                                 serious_risks = [f for f in verdict.risk_flags if 'countertrend' in f or 'choppy' in f]
                                 
