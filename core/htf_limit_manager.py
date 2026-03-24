@@ -95,6 +95,35 @@ class HTFLimitManager:
                             print(f"[HTF Sniper] Не найдено активных POI для {symbol}.")
                             continue
 
+                        # Отфильтруем слишком близко стоящие лимитки в разных направлениях
+                        long_pois = [p for p in all_pois if p['direction'] == 'LONG']
+                        short_pois = [p for p in all_pois if p['direction'] == 'SHORT']
+                        
+                        if long_pois and short_pois:
+                            # Берем самый верхний лонг (ближайший к текущей цене) и самый нижний шорт
+                            best_long = max(long_pois, key=lambda x: x['entry'])
+                            best_short = min(short_pois, key=lambda x: x['entry'])
+                            
+                            # Дистанция в процентах
+                            distance_pct = (best_short['entry'] - best_long['entry']) / current_price * 100
+                            
+                            if distance_pct < 1.5:
+                                macro_trend = await self.get_macro_trend(symbol)
+                                print(f"[HTF Sniper] ⚠️ Лимитки слишком близко друг к другу ({distance_pct:.2f}%). Макро-тренд: {macro_trend}")
+                                
+                                if macro_trend == "BULLISH":
+                                    all_pois = [p for p in all_pois if p['direction'] == 'LONG']
+                                    print(f"└ Оставляем только LONG (по тренду).")
+                                elif macro_trend == "BEARISH":
+                                    all_pois = [p for p in all_pois if p['direction'] == 'SHORT']
+                                    print(f"└ Оставляем только SHORT (по тренду).")
+                                else:
+                                    all_pois = []
+                                    print(f"└ Флэт. Отменяем обе лимитки из-за риска запила.")
+                        
+                        if not all_pois:
+                            continue
+
                         # Расставляем новые капканы
                         alert_messages = []
                         for poi in all_pois:
