@@ -8,7 +8,7 @@ from core.smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
 from core.notifier import Notifier
 from core.position_tracker import PositionTracker
 from core.htf_limit_manager import HTFLimitManager
-from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTO_TRADING_ENABLED, BINGX_WHITELIST, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE, BINGX_ALTCOIN_MARGIN, BINGX_MAX_OPEN_POSITIONS, BINGX_ALTCOIN_V9_MIN_SCORE, BINGX_BTC_TREND_FILTER
+from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTO_TRADING_ENABLED, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE, BINGX_ALTCOIN_MARGIN, BINGX_MAX_OPEN_POSITIONS, BINGX_ALTCOIN_V9_MIN_SCORE, BINGX_BTC_TREND_FILTER, TARGET_COINS
 
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
 
@@ -329,7 +329,8 @@ async def main():
             print("[ВНИМАНИЕ] Автоматическая торговля отключена (AUTO_TRADING_ENABLED=False). Сделки не будут открываться.")
             
         print("[BingX] Принудительная установка плеча для рабочих торговых пар...")
-        for symbol in BINGX_WHITELIST:
+        target_symbols = [f"{coin}/USDT:USDT" for coin in TARGET_COINS]
+        for symbol in target_symbols:
             await exchange.set_leverage(symbol, BINGX_LEVERAGE)
             
         tracker = PositionTracker(exchange)
