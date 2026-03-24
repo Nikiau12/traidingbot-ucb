@@ -4,14 +4,14 @@ from bingx.exchange_client_bingx import ExchangeClientBingX
 from core.notifier import Notifier
 from smartmoneyconcepts import smc
 from core.smart_engine import SmartContextEngine, Regime
-from core.config import AUTO_TRADING_ENABLED, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE
+from core.config import AUTO_TRADING_ENABLED, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE, TARGET_COINS
 
 notifier = Notifier()
 
 class HTFLimitManager:
     def __init__(self, exchange: ExchangeClientBingX):
         self.exchange = exchange
-        self.symbols = ["BTC/USDT:USDT", "ETH/USDT:USDT"]
+        self.symbols = [f"{coin}/USDT:USDT" for coin in TARGET_COINS]
         self.interval = 1800 # 30 минут
         self.risk_amount = BINGX_MARGIN_PER_ORDER
         self.tp_ratio = 3.0 # Risk:Reward 1:3
@@ -69,6 +69,14 @@ class HTFLimitManager:
                 if not AUTO_TRADING_ENABLED:
                     await asyncio.sleep(self.interval)
                     continue
+                # 1. Определяем Глобальный Макро-Тренд по Биткоину (Вожаку)
+                btc_symbol = "BTC/USDT:USDT"
+                try:
+                    global_macro_trend = await self.get_macro_trend(btc_symbol)
+                    print(f"🌍 [HTF Sniper] Глобальный тренд рынка (по {btc_symbol}): {global_macro_trend}")
+                except Exception as e:
+                    print(f"Ошибка получения тренда BTC: {e}")
+                    global_macro_trend = "CHOPPY" # Fallback
 
                 for symbol in self.symbols:
                     try:
@@ -99,8 +107,9 @@ class HTFLimitManager:
                             print(f"[HTF Sniper] Не найдено активных POI для {symbol}.")
                             continue
 
-                        macro_trend = await self.get_macro_trend(symbol)
-                        print(f"[HTF Sniper] Глобальный тренд 1D: {macro_trend}")
+                        # Используем общий тренд биткоина для всех монет
+                        macro_trend = global_macro_trend
+                        print(f"└ Тренд для {symbol} установлен как {macro_trend} (поводырь BTC)")
                         
                         # 1. СТРОГИЙ ФИЛЬТР ПО ТРЕНДУ (Приоритет направления)
                         if macro_trend == "BULLISH":
