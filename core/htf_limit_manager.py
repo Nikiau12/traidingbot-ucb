@@ -3,6 +3,7 @@ import time
 from bingx.exchange_client_bingx import ExchangeClientBingX
 from core.notifier import Notifier
 from smartmoneyconcepts import smc
+from core.smart_engine import SmartContextEngine, Regime
 from core.config import AUTO_TRADING_ENABLED, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE
 
 notifier = Notifier()
@@ -14,15 +15,18 @@ class HTFLimitManager:
         self.interval = 1800 # 30 минут
         self.risk_amount = BINGX_MARGIN_PER_ORDER
         self.tp_ratio = 3.0 # Risk:Reward 1:3
+        self.smart_engine = SmartContextEngine()
 
     async def get_macro_trend(self, symbol):
-        df_1d = await self.exchange.fetch_ohlcv(symbol, "1d", limit=100)
-        close = df_1d['close'].iloc[-1]
-        sma20 = df_1d['close'].rolling(20).mean().iloc[-1]
-        sma50 = df_1d['close'].rolling(50).mean().iloc[-1]
-        if close > sma20 and sma20 > sma50:
+        df_1d = await self.exchange.fetch_ohlcv(symbol, "1d", limit=250)
+        if df_1d.empty: return "CHOPPY"
+        
+        self.smart_engine.add_context_indicators(df_1d)
+        regime = self.smart_engine.regime_classifier.classify(df_1d)
+        
+        if regime in [Regime.UPTREND, Regime.EXPANSION]:
             return "BULLISH"
-        elif close < sma20 and sma20 < sma50:
+        elif regime == Regime.DOWNTREND:
             return "BEARISH"
         return "CHOPPY"
 
@@ -95,31 +99,32 @@ class HTFLimitManager:
                             print(f"[HTF Sniper] Не найдено активных POI для {symbol}.")
                             continue
 
-                        # Отфильтруем слишком близко стоящие лимитки в разных направлениях
-                        long_pois = [p for p in all_pois if p['direction'] == 'LONG']
-                        short_pois = [p for p in all_pois if p['direction'] == 'SHORT']
+                        macro_trend = await self.get_macro_trend(symbol)
+                        print(f"[HTF Sniper] Глобальный тренд 1D: {macro_trend}")
                         
-                        if long_pois and short_pois:
-                            # Берем самый верхний лонг (ближайший к текущей цене) и самый нижний шорт
-                            best_long = max(long_pois, key=lambda x: x['entry'])
-                            best_short = min(short_pois, key=lambda x: x['entry'])
+                        # 1. СТРОГИЙ ФИЛЬТР ПО ТРЕНДУ (Приоритет направления)
+                        if macro_trend == "BULLISH":
+                            all_pois = [p for p in all_pois if p['direction'] == 'LONG']
+                            if all_pois: print(f"└ Бычий рынок: Разрешены только LONG капканы.")
+                        elif macro_trend == "BEARISH":
+                            all_pois = [p for p in all_pois if p['direction'] == 'SHORT']
+                            if all_pois: print(f"└ Медвежий рынок: Разрешены только SHORT капканы.")
+                        
+                        # 2. ФИЛЬТР УЗКОГО БОКОВИКА (Флэт)
+                        if macro_trend == "CHOPPY":
+                            long_pois = [p for p in all_pois if p['direction'] == 'LONG']
+                            short_pois = [p for p in all_pois if p['direction'] == 'SHORT']
                             
-                            # Дистанция в процентах
-                            distance_pct = (best_short['entry'] - best_long['entry']) / current_price * 100
-                            
-                            if distance_pct < 1.5:
-                                macro_trend = await self.get_macro_trend(symbol)
-                                print(f"[HTF Sniper] ⚠️ Лимитки слишком близко друг к другу ({distance_pct:.2f}%). Макро-тренд: {macro_trend}")
+                            if long_pois and short_pois:
+                                best_long = max(long_pois, key=lambda x: x['entry'])
+                                best_short = min(short_pois, key=lambda x: x['entry'])
+                                distance_pct = (best_short['entry'] - best_long['entry']) / current_price * 100
                                 
-                                if macro_trend == "BULLISH":
-                                    all_pois = [p for p in all_pois if p['direction'] == 'LONG']
-                                    print(f"└ Оставляем только LONG (по тренду).")
-                                elif macro_trend == "BEARISH":
-                                    all_pois = [p for p in all_pois if p['direction'] == 'SHORT']
-                                    print(f"└ Оставляем только SHORT (по тренду).")
-                                else:
+                                if distance_pct < 4.0:
+                                    print(f"[HTF Sniper] ⚠️ Флэт, но лимитки слишком близко ({distance_pct:.2f}% < 4.0%). Отменяем обе.")
                                     all_pois = []
-                                    print(f"└ Флэт. Отменяем обе лимитки из-за риска запила.")
+                                else:
+                                    print(f"[HTF Sniper] ⚖️ Флэт. Широкий канал ({distance_pct:.2f}%). Разрешены двусторонние капканы.")
                         
                         if not all_pois:
                             continue
@@ -156,9 +161,10 @@ class HTFLimitManager:
                                 )
 
                         if alert_messages:
+                            mode_text = "🟢 ТОЛЬКО LONG" if macro_trend == "BULLISH" else ("🔴 ТОЛЬКО SHORT" if macro_trend == "BEARISH" else "⚖️ ОБЕ СТОРОНЫ (Широкий Флэт)")
                             msg = (f"🎯 <b>[HTF Снайпер - Капканы Расставлены]</b> 🎯\n\n"
                                    f"Монета: <b>{symbol}</b>\n"
-                                   f"Контртренд разрешен (Обе стороны).\n\n" + 
+                                   f"Режим тренда (1D): <b>{mode_text}</b>\n\n" + 
                                    "\n".join(alert_messages))
                             await notifier.send_message(msg)
 
