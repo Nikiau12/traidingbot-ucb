@@ -1,7 +1,7 @@
 import asyncio
 import ccxt.async_support as ccxt
 import pandas as pd
-from core.config import MEXC_API_KEY, MEXC_API_SECRET, CORE_PAIRS, MEMECOIN_V2_LIMIT
+from core.config import MEXC_API_KEY, MEXC_API_SECRET, MEMECOIN_V2_LIMIT, TARGET_COINS
 
 class ExchangeClient:
     def __init__(self):
@@ -64,13 +64,15 @@ class ExchangeClient:
             # Extract top N symbols
             top_symbols = [pair[0] for pair in usdt_pairs[:MEMECOIN_V2_LIMIT]]
             
-            # Ensure our CORE_PAIRS are included
-            final_symbols = list(set(CORE_PAIRS + top_symbols))
+            # Ensure our target coins are included
+            target_symbols = [f"{coin}/USDT" for coin in TARGET_COINS]
+            final_symbols = list(set(target_symbols + top_symbols))
             return final_symbols
             
         except Exception as e:
             print(f"Error fetching top pairs: {e}")
-            return CORE_PAIRS
+            target_symbols = [f"{coin}/USDT" for coin in TARGET_COINS]
+            return target_symbols
 
     async def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int = 200) -> pd.DataFrame:
         """Fetch OHLCV historical data and return as a Pandas DataFrame."""

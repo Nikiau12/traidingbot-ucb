@@ -9,7 +9,7 @@ from core.smc_analyzer import SMCAnalyzer
 from core.spike_scanner import SpikeScanner
 from core.notifier import Notifier
 from core.smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
-from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TIMEFRAMES, TOP_COINS_LIMIT, CORE_PAIRS
+from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TIMEFRAMES, TOP_COINS_LIMIT, TARGET_COINS
 
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
@@ -256,7 +256,8 @@ async def market_scanner_loop():
             current_time = time.time()
 
             for i, symbol in enumerate(symbols):
-                is_smc_eligible = (i < TOP_COINS_LIMIT) or (symbol in CORE_PAIRS)
+                target_symbols = [f"{coin}/USDT" for coin in TARGET_COINS]
+                is_smc_eligible = (i < TOP_COINS_LIMIT) or (symbol in target_symbols)
 
                 for tf in ["15m", "4h", "1d"]:
                     df = await exchange.fetch_ohlcv(symbol, tf)
