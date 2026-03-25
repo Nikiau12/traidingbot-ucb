@@ -8,6 +8,7 @@ from core.smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
 from core.notifier import Notifier
 from core.position_tracker import PositionTracker
 from core.htf_limit_manager import HTFLimitManager
+from core.false_breakout_scanner import FalseBreakoutScanner
 from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTO_TRADING_ENABLED, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE, BINGX_ALTCOIN_MARGIN, BINGX_MAX_OPEN_POSITIONS, BINGX_ALTCOIN_V9_MIN_SCORE, BINGX_BTC_TREND_FILTER, TARGET_COINS
 
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
@@ -338,6 +339,9 @@ async def main():
         
         htf_sniper = HTFLimitManager(exchange)
         asyncio.create_task(htf_sniper.run_loop())
+        
+        fb_scanner = FalseBreakoutScanner(exchange)
+        asyncio.create_task(fb_scanner.run_loop())
         
         await autotrade_scanner_loop()
     finally:
