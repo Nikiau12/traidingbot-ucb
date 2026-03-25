@@ -5,7 +5,7 @@ import pandas as pd
 from datetime import datetime, timezone
 from bingx.exchange_client_bingx import ExchangeClientBingX
 from core.notifier import Notifier
-from core.config import AUTO_TRADING_ENABLED, TARGET_COINS, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE
+from core.config import AUTO_TRADING_ENABLED, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE
 from core.smart_engine import SmartContextEngine
 
 notifier = Notifier()
@@ -13,7 +13,8 @@ notifier = Notifier()
 class FalseBreakoutScanner:
     def __init__(self, exchange: ExchangeClientBingX):
         self.exchange = exchange
-        self.symbols = [f"{coin}/USDT:USDT" for coin in TARGET_COINS]
+        # Жестко фиксируем торговлю ложными пробоями только для Мажоров (BTC, ETH, SOL)
+        self.symbols = ["BTC/USDT:USDT", "ETH/USDT:USDT", "SOL/USDT:USDT"]
         self.interval = 300  # Проверка каждые 5 минут
         self.smart_engine = SmartContextEngine()
         
