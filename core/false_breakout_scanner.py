@@ -5,7 +5,7 @@ import pandas as pd
 from datetime import datetime, timezone
 from bingx.exchange_client_bingx import ExchangeClientBingX
 from core.notifier import Notifier
-from core.config import AUTO_TRADING_ENABLED, TARGET_COINS
+from core.config import AUTO_TRADING_ENABLED, TARGET_COINS, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE
 from core.smart_engine import SmartContextEngine
 
 notifier = Notifier()
@@ -104,7 +104,7 @@ class FalseBreakoutScanner:
                     breakout_type = "2-bar"
                 
                 # Запрещаем входить слишком далеко от уровня (Risk:Reward будет плохим)
-                if abs(r - price_close) > (atr_1d * 0.1):
+                if abs(r - price_close) > (atr_1d * 0.25):
                     continue
                     
                 confidence = 8 if trend in ["DOWNTREND", "RANGE"] else 5
@@ -135,7 +135,7 @@ class FalseBreakoutScanner:
                 if price_close_prev < s:
                     breakout_type = "2-bar"
                     
-                if abs(price_close - s) > (atr_1d * 0.1):
+                if abs(price_close - s) > (atr_1d * 0.25):
                     continue
                     
                 confidence = 8 if trend in ["UPTREND", "RANGE"] else 5
@@ -186,19 +186,42 @@ class FalseBreakoutScanner:
                     
                     if setup:
                         print(f"🚨 НАЙДЕН СЕТАП ЛОЖНОГО ПРОБОЯ: {symbol} -> {setup['setup']}")
+                        
+                        # Расчет позиции
+                        entry_price = setup['entry']
+                        position_coin_size = (BINGX_MARGIN_PER_ORDER * BINGX_LEVERAGE) / entry_price
+                        side = 'buy' if setup['setup'] == "LONG" else 'sell'
+                        
+                        # Исполнение ордера
+                        order_status = "ОЖИДАЕМ (Сигнальный Режим)"
+                        if AUTO_TRADING_ENABLED:
+                            order = await self.exchange.create_market_order_with_sl_tp(
+                                symbol=symbol,
+                                side=side,
+                                amount=position_coin_size,
+                                stop_loss=setup['stop'],
+                                take_profit=setup['target']
+                            )
+                            if order:
+                                order_status = "✅ ОРДЕР УСПЕШНО ОТКРЫТ"
+                            else:
+                                order_status = "❌ ОШИБКА ИСПОЛНЕНИЯ БИРЖЕЙ"
+                        else:
+                            order_status = "⏸️ АВТОТОРГОВЛЯ ВЫКЛЮЧЕНА"
+
                         message = (
-                            f"🦊 <b>[LIQUIDITY SWEEP SIGNALS]</b> 🦊\n\n"
+                            f"🦊 <b>[LIQUIDITY SWEEP EXECUTED]</b> 🦊\n\n"
                             f"Монета: <b>{symbol}</b>\n"
                             f"Сетап: <b>{setup['setup']}</b> (Уверенность: {setup['confidence']}/10)\n"
+                            f"Статус: <b>{order_status}</b>\n\n"
                             f"Обоснование: {setup['reasoning']}\n\n"
-                            f"Вход: <b>{setup['entry']:.4f}</b>\n"
+                            f"Вход (Market): <b>{setup['entry']:.4f}</b>\n"
                             f"Стоп (за тень): <b>{setup['stop']:.4f}</b>\n"
                             f"Цель: <b>{setup['target']:.4f}</b>\n\n"
                             f"<b>Контекст:</b>\n"
                             f"- Глобальный Тренд: {setup['context']['trend']}\n"
                             f"- Заколотый уровень: {setup['context']['level']:.4f}\n"
                             f"- Тип пробоя: {setup['context']['breakout_type']}\n"
-                            f"\n<i>*Сигнал работает в режиме наблюдения. Сделка автоматически не открыта.</i>"
                         )
                         await notifier.send_message(message)
                         
