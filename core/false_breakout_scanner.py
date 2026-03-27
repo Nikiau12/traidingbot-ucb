@@ -188,9 +188,10 @@ class FalseBreakoutScanner:
                     if setup:
                         print(f"🚨 НАЙДЕН СЕТАП ЛОЖНОГО ПРОБОЯ: {symbol} -> {setup['setup']}")
                         
-                        # Расчет позиции
+                        # Расчет позиции (Фиксированная маржа $5.0 для ложных пробоев)
                         entry_price = setup['entry']
-                        position_coin_size = (BINGX_MARGIN_PER_ORDER * BINGX_LEVERAGE) / entry_price
+                        FALSE_BREAKOUT_MARGIN = 5.0
+                        position_coin_size = (FALSE_BREAKOUT_MARGIN * BINGX_LEVERAGE) / entry_price
                         side = 'buy' if setup['setup'] == "LONG" else 'sell'
                         
                         # Исполнение ордера
