@@ -4,7 +4,7 @@ from bingx.exchange_client_bingx import ExchangeClientBingX
 from core.notifier import Notifier
 from smartmoneyconcepts import smc
 from core.smart_engine import SmartContextEngine, Regime
-from core.config import AUTO_TRADING_ENABLED, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE, TARGET_COINS
+from core.config import AUTO_TRADING_ENABLED, BINGX_MARGIN_PER_ORDER, BINGX_BTC_ETH_MARGIN_PER_ORDER, BINGX_LEVERAGE, TARGET_COINS
 
 notifier = Notifier()
 
@@ -13,7 +13,7 @@ class HTFLimitManager:
         self.exchange = exchange
         self.symbols = [f"{coin}/USDT:USDT" for coin in TARGET_COINS]
         self.interval = 1800 # 30 минут
-        self.risk_amount = BINGX_MARGIN_PER_ORDER
+        self.risk_amount = BINGX_MARGIN_PER_ORDER # Default
         self.tp_ratio = 3.0 # Risk:Reward 1:3
         self.smart_engine = SmartContextEngine()
 
@@ -156,7 +156,9 @@ class HTFLimitManager:
                                 
                             tp_price = entry_price + (distance_to_sl * self.tp_ratio) if direction == "LONG" else entry_price - (distance_to_sl * self.tp_ratio)
 
-                            position_coin_size = (self.risk_amount * BINGX_LEVERAGE) / entry_price
+                            is_btc_eth = any(coin in symbol for coin in ['BTC', 'ETH'])
+                            current_risk = BINGX_BTC_ETH_MARGIN_PER_ORDER if is_btc_eth else self.risk_amount
+                            position_coin_size = (current_risk * BINGX_LEVERAGE) / entry_price
                             side = 'buy' if direction == "LONG" else 'sell'
                             
                             order = await self.exchange.create_limit_order_with_sl_tp(

@@ -9,7 +9,7 @@ from core.notifier import Notifier
 from core.position_tracker import PositionTracker
 from core.htf_limit_manager import HTFLimitManager
 from core.false_breakout_scanner import FalseBreakoutScanner
-from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTO_TRADING_ENABLED, BINGX_MARGIN_PER_ORDER, BINGX_LEVERAGE, BINGX_ALTCOIN_MARGIN, BINGX_MAX_OPEN_POSITIONS, BINGX_ALTCOIN_V9_MIN_SCORE, BINGX_BTC_TREND_FILTER, TARGET_COINS
+from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, AUTO_TRADING_ENABLED, BINGX_MARGIN_PER_ORDER, BINGX_BTC_ETH_MARGIN_PER_ORDER, BINGX_LEVERAGE, BINGX_ALTCOIN_MARGIN, BINGX_MAX_OPEN_POSITIONS, BINGX_ALTCOIN_V9_MIN_SCORE, BINGX_BTC_TREND_FILTER, TARGET_COINS
 
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
 
@@ -42,7 +42,9 @@ async def execute_smart_grid(symbol, tf, setup, verdict, is_spike=False):
         
     try:
         balance_usdt = await exchange.fetch_balance_usdt()
-        order_risk_usdt = setup.get('risk', BINGX_MARGIN_PER_ORDER)
+        is_btc_eth = any(coin in symbol for coin in ['BTC', 'ETH'])
+        fallback_risk = BINGX_BTC_ETH_MARGIN_PER_ORDER if is_btc_eth else BINGX_MARGIN_PER_ORDER
+        order_risk_usdt = setup.get('risk', fallback_risk)
         
         if balance_usdt < 10.0:
             msg = f"⚠️ [BingX] Недостаточно баланса для сделки по {symbol}. Текущий баланс: {balance_usdt:.2f} USDT"
@@ -202,8 +204,15 @@ async def autotrade_scanner_loop():
             current_time = time.time()
 
             for symbol in final_symbols:
-                is_major = any(coin in symbol for coin in ['BTC', 'ETH', 'SOL'])
-                order_risk = BINGX_MARGIN_PER_ORDER if is_major else BINGX_ALTCOIN_MARGIN
+                is_btc_eth = any(coin in symbol for coin in ['BTC', 'ETH'])
+                is_major = is_btc_eth or 'SOL' in symbol
+                
+                if is_btc_eth:
+                    order_risk = BINGX_BTC_ETH_MARGIN_PER_ORDER
+                elif is_major:
+                    order_risk = BINGX_MARGIN_PER_ORDER
+                else:
+                    order_risk = BINGX_ALTCOIN_MARGIN
                 
                 import pandas as pd
                 for tf in ["1h"]: # Торгуем только на 1h по просьбе пользователя
