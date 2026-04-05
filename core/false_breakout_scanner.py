@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from bingx.exchange_client_bingx import ExchangeClientBingX
 from core.notifier import Notifier
 from core.config import AUTO_TRADING_ENABLED, BINGX_FALSE_BREAKOUT_MARGIN, BINGX_LEVERAGE, TARGET_COINS
-from core.smart_engine import SmartContextEngine
+from core.smart_engine import SmartContextEngine, SignalType
 
 notifier = Notifier()
 
@@ -186,13 +186,19 @@ class FalseBreakoutScanner:
                         continue
 
                     # Сканируем рабочий фрейм 15m
-                    df_15m = await self.exchange.fetch_ohlcv(symbol, "15m", limit=10)
+                    df_15m = await self.exchange.fetch_ohlcv(symbol, "15m", limit=250)
                     if df_15m.empty: continue
                     
                     setup = self.find_false_breakout(symbol, df_15m, self.levels_cache[symbol])
                     
                     if setup:
-                        print(f"🚨 НАЙДЕН СЕТАП ЛОЖНОГО ПРОБОЯ: {symbol} -> {setup['setup']}")
+                        # --- ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА ЧЕРЕЗ ИИ (V9 Context Engine) ---
+                        score = self.smart_engine.analyze_context(df_15m, symbol, setup['setup'])
+                        if score.signal == SignalType.NO_TRADE or score.confidence < 60:
+                            print(f"[Sweep Scanner] AI отклонил сетап {symbol}: Уверенность {score.confidence}% < 60%")
+                            continue
+                            
+                        print(f"🚨 НАЙДЕН СЕТАП ЛОЖНОГО ПРОБОЯ (AI Confirmed {score.confidence}%): {symbol} -> {setup['setup']}")
                         
                         entry_price = setup['entry']
                         position_coin_size = (BINGX_FALSE_BREAKOUT_MARGIN * BINGX_LEVERAGE) / entry_price
@@ -242,7 +248,8 @@ class FalseBreakoutScanner:
                         message = (
                             f"🦊 <b>[LIQUIDITY SWEEP EXECUTED]</b> 🦊\n\n"
                             f"Монета: <b>{symbol}</b>\n"
-                            f"Сетап: <b>{setup['setup']}</b> (Уверенность: {setup['confidence']}/10)\n"
+                            f"Сетап: <b>{setup['setup']}</b>\n"
+                            f"🤖 <b>AI Уверенность: {score.confidence}%</b>\n"
                             f"Статус: <b>{order_status}</b>\n\n"
                             f"Обоснование: {setup['reasoning']}\n\n"
                             f"Вход (Market): <b>{setup['entry']:.4f}</b>\n"
