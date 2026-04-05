@@ -343,16 +343,16 @@ async def main():
         for symbol in target_symbols:
             await exchange.set_leverage(symbol, BINGX_LEVERAGE)
             
-        tracker = PositionTracker(exchange)
-        asyncio.create_task(tracker.track_loop())
+        # tracker = PositionTracker(exchange)
+        # asyncio.create_task(tracker.track_loop())
         
-        htf_sniper = HTFLimitManager(exchange)
-        asyncio.create_task(htf_sniper.run_loop())
+        # htf_sniper = HTFLimitManager(exchange)
+        # asyncio.create_task(htf_sniper.run_loop())
         
         fb_scanner = FalseBreakoutScanner(exchange)
-        asyncio.create_task(fb_scanner.run_loop())
+        await fb_scanner.run_loop() # Запускаем напрямую вместо фоновой задачи, так как он единственный
         
-        await autotrade_scanner_loop()
+        # await autotrade_scanner_loop()
     finally:
         await exchange.close()
         await notifier.close()

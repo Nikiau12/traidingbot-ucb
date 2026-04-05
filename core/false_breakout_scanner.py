@@ -5,7 +5,7 @@ import pandas as pd
 from datetime import datetime, timezone
 from bingx.exchange_client_bingx import ExchangeClientBingX
 from core.notifier import Notifier
-from core.config import AUTO_TRADING_ENABLED, BINGX_MARGIN_PER_ORDER, BINGX_BTC_ETH_MARGIN_PER_ORDER, BINGX_LEVERAGE
+from core.config import AUTO_TRADING_ENABLED, BINGX_FALSE_BREAKOUT_MARGIN, BINGX_LEVERAGE, TARGET_COINS
 from core.smart_engine import SmartContextEngine
 
 notifier = Notifier()
@@ -13,8 +13,8 @@ notifier = Notifier()
 class FalseBreakoutScanner:
     def __init__(self, exchange: ExchangeClientBingX):
         self.exchange = exchange
-        # Жестко фиксируем торговлю ложными пробоями только для Мажоров (BTC, ETH, SOL)
-        self.symbols = ["BTC/USDT:USDT", "ETH/USDT:USDT", "SOL/USDT:USDT"]
+        # Торгуем только монетами из TARGET_COINS (BTC, ETH, SOL)
+        self.symbols = [f"{coin}/USDT:USDT" for coin in TARGET_COINS]
         self.interval = 300  # Проверка каждые 5 минут
         self.smart_engine = SmartContextEngine()
         
@@ -188,11 +188,8 @@ class FalseBreakoutScanner:
                     if setup:
                         print(f"🚨 НАЙДЕН СЕТАП ЛОЖНОГО ПРОБОЯ: {symbol} -> {setup['setup']}")
                         
-                        # Расчет позиции (Динамическая маржа для BTC/ETH, иначе $5.0)
-                        is_btc_eth = any(coin in symbol for coin in ['BTC', 'ETH'])
                         entry_price = setup['entry']
-                        FALSE_BREAKOUT_MARGIN = (BINGX_BTC_ETH_MARGIN_PER_ORDER * 3.0) if is_btc_eth else 5.0
-                        position_coin_size = (FALSE_BREAKOUT_MARGIN * BINGX_LEVERAGE) / entry_price
+                        position_coin_size = (BINGX_FALSE_BREAKOUT_MARGIN * BINGX_LEVERAGE) / entry_price
                         side = 'buy' if setup['setup'] == "LONG" else 'sell'
                         
                         # Исполнение ордера
