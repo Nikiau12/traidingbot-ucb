@@ -343,8 +343,8 @@ async def main():
         for symbol in target_symbols:
             await exchange.set_leverage(symbol, BINGX_LEVERAGE)
             
-        # tracker = PositionTracker(exchange)
-        # asyncio.create_task(tracker.track_loop())
+        tracker = PositionTracker(exchange)
+        asyncio.create_task(tracker.track_loop())
         
         # htf_sniper = HTFLimitManager(exchange)
         # asyncio.create_task(htf_sniper.run_loop())

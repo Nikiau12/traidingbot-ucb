@@ -18,8 +18,10 @@ class FalseBreakoutScanner:
         self.interval = 300  # Проверка каждые 5 минут
         self.smart_engine = SmartContextEngine()
         
-        # Кеш для хранения уровней (чтобы не пересчитывать каждый цикл, только раз в пару часов)
+        # Кеш для хранения уровней
         self.levels_cache = {}
+        # Таймер для блокировки повторных входов по той же монете (минимум 1 час)
+        self.cooldowns = {}
 
     def _get_pivot_levels(self, df: pd.DataFrame, window=5):
         """
@@ -179,7 +181,11 @@ class FalseBreakoutScanner:
                     if symbol not in self.levels_cache:
                         continue
                         
-                    # Сканируем рабочий фрейм 15m (наблюдаем за поведением вокруг уровней)
+                    # 0. Проверка колдауна (чтобы не входить чаще раза в 2 часа по одной монете)
+                    if symbol in self.cooldowns and (now - self.cooldowns[symbol]) < 7200:
+                        continue
+
+                    # Сканируем рабочий фрейм 15m
                     df_15m = await self.exchange.fetch_ohlcv(symbol, "15m", limit=10)
                     if df_15m.empty: continue
                     
@@ -195,6 +201,29 @@ class FalseBreakoutScanner:
                         # Исполнение ордера
                         order_status = "ОЖИДАЕМ (Сигнальный Режим)"
                         if AUTO_TRADING_ENABLED:
+                            # ПРОВЕРКА 1: Нет ли уже открытых позиций?
+                            try:
+                                positions = await self.exchange.exchange.fetch_positions()
+                                active_pos = [p for p in positions if p['symbol'] == symbol and float(p.get('contracts', 0)) > 0]
+                                if active_pos:
+                                    print(f"⚠️ [Sweep Scanner] Пропуск {symbol}: Позиция уже открыта.")
+                                    continue
+                            except Exception as e:
+                                print(f"Ошибка проверки позиций: {e}")
+                                
+                            # ПРОВЕРКА 2: Лимит на количество открытых сделок
+                            try:
+                                count = await self.exchange.fetch_active_positions_count()
+                                if count >= 3: # Жесткий лимит на 3 сделки одновременно
+                                    print(f"⚠️ [Sweep Scanner] Пропуск {symbol}: Достигнут лимит открытых сделок (3).")
+                                    continue
+                            except: pass
+
+                            # ПРИНУДИТЕЛЬНОЕ ПЛЕЧО ПЕРЕД ВХОДОМ
+                            await self.exchange.set_leverage(symbol, BINGX_LEVERAGE)
+                            
+                            print(f"🛒 [Sweep Scanner] Отправляем ордер: {side} {position_coin_size:.4f} {symbol} (Маржа: {BINGX_FALSE_BREAKOUT_MARGIN}$, Плечо: x{BINGX_LEVERAGE})")
+                            
                             order = await self.exchange.create_market_order_with_sl_tp(
                                 symbol=symbol,
                                 side=side,
@@ -204,6 +233,7 @@ class FalseBreakoutScanner:
                             )
                             if order:
                                 order_status = "✅ ОРДЕР УСПЕШНО ОТКРЫТ"
+                                self.cooldowns[symbol] = now # Активируем колдаун ПОСЛЕ входа
                             else:
                                 order_status = "❌ ОШИБКА ИСПОЛНЕНИЯ БИРЖЕЙ"
                         else:
@@ -225,8 +255,8 @@ class FalseBreakoutScanner:
                         )
                         await notifier.send_message(message)
                         
-                        # Колдаун на пару часов, чтобы не спамить один и тот же уровень
-                        self.levels_cache[symbol]['last_update'] = now + 7200 
+                        # Колдаун на пару часов управляется через self.cooldowns
+                        pass
                         
             except Exception as e:
                 print(f"Ошибка в цикле FalseBreakoutScanner: {e}")
