@@ -55,6 +55,8 @@ class SpikeScanner:
                     'type': spike_type,
                     'direction': direction,
                     'pct_change': pct_change,
+                    'start_price': last_row['open'],
+                    'current_price': last_row['close'],
                     'volume_ratio': last_row['volume'] / prev_avg_vol if prev_avg_vol > 0 else 0
                 }
         

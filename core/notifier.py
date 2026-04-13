@@ -69,6 +69,8 @@ class Notifier:
             f"🚀 <b>ВСПЛЕСК АКТИВНОСТИ: {symbol}</b>\n"
             f"Таймфрейм: {timeframe}\n"
             f"Направление: {direction}\n"
+            f"Цена ДО: {spike_data['start_price']:.5f}\n"
+            f"Цена СЕЙЧАС: {spike_data['current_price']:.5f}\n"
             f"Изменение цены: {spike_data['pct_change']:.2f}%\n"
             f"Тип всплеска: {spike_data['type']}\n"
             f"Объем: x{spike_data['volume_ratio']:.1f} от среднего"
