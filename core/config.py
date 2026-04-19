@@ -55,3 +55,8 @@ BINGX_MOVE_SL_TO_BREAKEVEN = True # Автоматический перевод 
 BINGX_FALSE_BREAKOUT_MARGIN = 10.0 # СТРОГО: 10 USDT маржи на сделку
 BINGX_LEVERAGE = 15 # Плечо x15 обеспечивает минимальный объем сделки (1$ * 15 = 15$)
 BINGX_DAILY_LOSS_LIMIT = 15.0 # Если убыток за день больше 15$, бот прекращает открывать сделки до конца дня
+
+# Flag Pattern Scanner Settings
+FLAG_MIN_POLE_PERCENT = 3.0 # Минимальное падение/рост для флагштока (%)
+FLAG_MAX_RETRACEMENT = 0.5 # Максимальный откат по фибо (50% флагштока)
+FLAG_MARGIN_PER_TRADE = 10.0 # Маржа на одну сделку по флагу
