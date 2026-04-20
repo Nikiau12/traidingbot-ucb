@@ -83,8 +83,8 @@ class FalseBreakoutScanner:
         atr_1d = htf_data['atr_1d']
         trend = htf_data['macro_trend']
         
-        # Допуск закола (глубина) — не более 0.15 ATR от дневного хода!
-        max_deviation = atr_1d * 0.15
+        # Допуск закола (глубина) — не более 0.30 ATR от дневного хода!
+        max_deviation = atr_1d * 0.30
         
         setup = None
         
@@ -118,7 +118,7 @@ class FalseBreakoutScanner:
                     "confidence": confidence,
                     "reasoning": f"Формация ложного пробоя сопротивления {r}. Зашли за уровень и вернулись.",
                     "entry": price_close,
-                    "stop": recent_high + (atr_1d * 0.02),
+                    "stop": recent_high + (atr_1d * 0.1),
                     "target": price_close - atr_1d * 0.5, # Тейк минимум пол-ATR
                     "context": {
                         "trend": trend,
@@ -149,7 +149,7 @@ class FalseBreakoutScanner:
                     "confidence": confidence,
                     "reasoning": f"Формация ложного срыва поддержки {s}. Сняли стопы и вернулись.",
                     "entry": price_close,
-                    "stop": recent_low - (atr_1d * 0.02),
+                    "stop": recent_low - (atr_1d * 0.1),
                     "target": price_close + atr_1d * 0.5,
                     "context": {
                         "trend": trend,

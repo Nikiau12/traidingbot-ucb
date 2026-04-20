@@ -9,7 +9,7 @@ notifier = Notifier()
 class PositionTracker:
     def __init__(self, exchange: ExchangeClientBingX):
         self.exchange = exchange
-        self.ROE_THRESHOLD = 0.10 # 10% ROE. Плечо x15 = ~0.66% чистого движения графика.
+        self.ROE_THRESHOLD = 0.25 # 25% ROE. Плечо x15 = ~1.66% чистого движения графика.
         self.cooldowns = {}
 
     async def track_loop(self):
