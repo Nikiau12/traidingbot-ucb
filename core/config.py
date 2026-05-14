@@ -22,7 +22,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 TIMEFRAMES = ["15m", "1h", "4h", "1d", "1w"]
 
 # Core Target Pairs (Единый источник правды)
-TARGET_COINS = ["BTC", "ETH", "SOL"]
+TARGET_COINS = ["BTC"]
 
 # How many top coins by volume to track for SMC main strategy
 TOP_COINS_LIMIT = 50
@@ -55,6 +55,12 @@ BINGX_MOVE_SL_TO_BREAKEVEN = True # Автоматический перевод 
 BINGX_FALSE_BREAKOUT_MARGIN = 10.0 # СТРОГО: 10 USDT маржи на сделку
 BINGX_LEVERAGE = 15 # Плечо x15 обеспечивает минимальный объем сделки (1$ * 15 = 15$)
 BINGX_DAILY_LOSS_LIMIT = 15.0 # Если убыток за день больше 15$, бот прекращает открывать сделки до конца дня
+
+# BTC-only trade policy
+BTC_LONG_ONLY_MODE = False # Разрешаем и BTC-лонги, и BTC-шорты, но только по дневному тренду
+BTC_REQUIRE_DAILY_UPTREND = True # Лонги только если BTC выше дневной EMA200 и EMA20 > EMA50; шорты зеркально по медвежьему тренду
+BTC_MAX_DAILY_ATR_PCT = 0.045 # Не входить, если дневной ATR выше 4.5% цены
+BTC_MIN_RISK_REWARD = 1.8 # Минимальный плановый RR для BTC-сделки
 
 # Flag Pattern Scanner Settings
 FLAG_MIN_POLE_PERCENT = 3.0 # Минимальное падение/рост для флагштока (%)

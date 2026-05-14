@@ -5,6 +5,7 @@ import numpy as np
 from datetime import datetime, timezone
 
 from bingx.exchange_client_bingx import ExchangeClientBingX
+from core.btc_trade_policy import evaluate_btc_setup
 from core.notifier import Notifier
 from core.smart_engine import SmartContextEngine, SignalType
 from core.config import AUTO_TRADING_ENABLED, BINGX_LEVERAGE, TARGET_COINS, FLAG_MIN_POLE_PERCENT, FLAG_MAX_RETRACEMENT, FLAG_MARGIN_PER_TRADE
@@ -203,12 +204,23 @@ class FlagPatternScanner:
                         continue
 
                     # Сканируем рабочий фрейм 1d (По просьбе пользователя)
-                    df_1d = await self.exchange.fetch_ohlcv(symbol, "1d", limit=200)
+                    df_1d = await self.exchange.fetch_ohlcv(symbol, "1d", limit=250)
                     if df_1d.empty: continue
                     
                     setup = self.analyze_flag(symbol, df_1d)
                     
                     if setup:
+                        policy_ok, policy_reasons, policy_metrics = evaluate_btc_setup(
+                            setup["setup"],
+                            setup["entry"],
+                            setup["stop"],
+                            setup["target"],
+                            df_1d
+                        )
+                        if not policy_ok:
+                            print(f"[Flag Scanner] BTC policy rejected {symbol} {setup['setup']}: {policy_reasons}")
+                            continue
+
                         # Фильтр AI для подтверждения
                         score = self.smart_engine.analyze_context(df_1d, symbol, setup['setup'])
                         if score.signal == SignalType.NO_TRADE or score.confidence < 50:
@@ -249,6 +261,7 @@ class FlagPatternScanner:
                             f"Вход (Market): <b>{setup['entry']:.4f}</b>\n"
                             f"Стоп: <b>{setup['stop']:.4f}</b>\n"
                             f"Цель: <b>{setup['target']:.4f}</b>\n"
+                            f"BTC Policy RR: <b>{policy_metrics.get('rr', 0):.2f}</b>, Daily ATR: <b>{policy_metrics.get('atr_pct', 0):.2%}</b>\n"
                         )
                         await notifier.send_message(message)
                         

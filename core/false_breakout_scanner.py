@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from bingx.exchange_client_bingx import ExchangeClientBingX
 from core.notifier import Notifier
 from core.config import AUTO_TRADING_ENABLED, BINGX_FALSE_BREAKOUT_MARGIN, BINGX_LEVERAGE, TARGET_COINS
+from core.btc_trade_policy import evaluate_btc_setup
 from core.smart_engine import SmartContextEngine, SignalType
 
 notifier = Notifier()
@@ -13,7 +14,7 @@ notifier = Notifier()
 class FalseBreakoutScanner:
     def __init__(self, exchange: ExchangeClientBingX):
         self.exchange = exchange
-        # Торгуем только монетами из TARGET_COINS (BTC, ETH, SOL)
+        # Торгуем только монетами из TARGET_COINS
         self.symbols = [f"{coin}/USDT:USDT" for coin in TARGET_COINS]
         self.interval = 300  # Проверка каждые 5 минут
         self.smart_engine = SmartContextEngine()
@@ -48,7 +49,7 @@ class FalseBreakoutScanner:
             res_4h, sup_4h = self._get_pivot_levels(df_4h, window=8) # 8 свечей = 32 часа
             
             # 2. Загружаем 1D
-            df_1d = await self.exchange.fetch_ohlcv(symbol, "1d", limit=100)
+            df_1d = await self.exchange.fetch_ohlcv(symbol, "1d", limit=250)
             res_1d, sup_1d = self._get_pivot_levels(df_1d, window=5) # 5 свечей = 5 дней
             
             # Объединяем
@@ -64,6 +65,7 @@ class FalseBreakoutScanner:
                 "resistances": sorted(list(set(all_resistances))),
                 "supports": sorted(list(set(all_supports))),
                 "atr_1d": atr_1d,
+                "df_1d": df_1d,
                 "macro_trend": macro_trend,
                 "last_update": datetime.now(timezone.utc).timestamp()
             }
@@ -192,6 +194,17 @@ class FalseBreakoutScanner:
                     setup = self.find_false_breakout(symbol, df_15m, self.levels_cache[symbol])
                     
                     if setup:
+                        policy_ok, policy_reasons, policy_metrics = evaluate_btc_setup(
+                            setup["setup"],
+                            setup["entry"],
+                            setup["stop"],
+                            setup["target"],
+                            self.levels_cache[symbol].get("df_1d")
+                        )
+                        if not policy_ok:
+                            print(f"[Sweep Scanner] BTC policy rejected {symbol} {setup['setup']}: {policy_reasons}")
+                            continue
+
                         # --- ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА ЧЕРЕЗ ИИ (V9 Context Engine) ---
                         score = self.smart_engine.analyze_context(df_15m, symbol, setup['setup'])
                         if score.signal == SignalType.NO_TRADE or score.confidence < 60:
@@ -259,6 +272,7 @@ class FalseBreakoutScanner:
                             f"- Глобальный Тренд: {setup['context']['trend']}\n"
                             f"- Заколотый уровень: {setup['context']['level']:.4f}\n"
                             f"- Тип пробоя: {setup['context']['breakout_type']}\n"
+                            f"- BTC Policy RR: {policy_metrics.get('rr', 0):.2f}, Daily ATR: {policy_metrics.get('atr_pct', 0):.2%}\n"
                         )
                         await notifier.send_message(message)
                         
