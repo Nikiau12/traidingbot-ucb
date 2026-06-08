@@ -3,3 +3,7 @@ __pycache__/
 .env
 *.pyc
 .DS_Store
+users.json
+user_access.json
+mexc_markets_snapshot.json
+mexc_announcements_snapshot.json

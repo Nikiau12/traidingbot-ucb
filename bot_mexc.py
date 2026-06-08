@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import time
+from datetime import datetime
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 from mexc.exchange_client_mexc import ExchangeClient
@@ -11,13 +12,14 @@ from core.notifier import Notifier
 from core.smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
 from core.coin_info_service import CoinInfoService
 from core.listing_watcher import MexcListingWatcher
-from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TIMEFRAMES, TOP_COINS_LIMIT, TARGET_COINS, SMART_SPIKE_MIN_SCORE, SMART_SPIKE_MIN_QUOTE_VOLUME, MEXC_LISTING_SNAPSHOT_FILE, MEXC_ANNOUNCEMENTS_SNAPSHOT_FILE, MEXC_LISTING_CHECK_INTERVAL, MEXC_NEW_LISTINGS_URL
+from core.access_manager import AccessManager
+from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ADMIN_CHAT_IDS, TIMEFRAMES, TOP_COINS_LIMIT, TARGET_COINS, SMART_SPIKE_MIN_SCORE, SMART_SPIKE_MIN_QUOTE_VOLUME, MEXC_LISTING_SNAPSHOT_FILE, MEXC_ANNOUNCEMENTS_SNAPSHOT_FILE, MEXC_LISTING_CHECK_INTERVAL, MEXC_NEW_LISTINGS_URL, FREE_TRIAL_SIGNALS, PAID_ACCESS_HOURS, USDT_PAYMENT_ADDRESS, USDT_PAYMENT_AMOUNT, USDT_PAYMENT_NETWORK, ACCESS_STATE_FILE, USER_REGISTRY_FILE
 
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
 router = Router()
 
-USERS_FILE = "users.json"
+USERS_FILE = USER_REGISTRY_FILE
 
 def load_users():
     if os.path.exists(USERS_FILE):
@@ -49,18 +51,45 @@ spike_scanner = SpikeScanner()
 smart_engine = SmartContextEngine()
 mtf_engine = MTFFusionEngine()
 coin_info_service = CoinInfoService()
+access_manager = AccessManager(
+    ACCESS_STATE_FILE,
+    free_trial_signals=FREE_TRIAL_SIGNALS,
+    paid_access_hours=PAID_ACCESS_HOURS,
+    payment_address=USDT_PAYMENT_ADDRESS,
+    payment_amount=USDT_PAYMENT_AMOUNT,
+    payment_network=USDT_PAYMENT_NETWORK,
+)
 listing_watcher = MexcListingWatcher(
     MEXC_LISTING_SNAPSHOT_FILE,
     announcements_snapshot_file=MEXC_ANNOUNCEMENTS_SNAPSHOT_FILE,
     announcements_url=MEXC_NEW_LISTINGS_URL,
 )
 # Передаем set пользователей в Notifier
-notifier = Notifier(bot_instance, active_users)
+notifier = Notifier(bot_instance, active_users, access_manager=access_manager)
+
+def is_admin(chat_id: str) -> bool:
+    return str(chat_id) in ADMIN_CHAT_IDS
+
+def format_ts(timestamp: int) -> str:
+    if not timestamp:
+        return "нет"
+    return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M")
+
+async def require_access(message: types.Message) -> bool:
+    chat_id = str(message.chat.id)
+    if is_admin(chat_id):
+        return True
+    allowed, _ = access_manager.consume_signal(chat_id)
+    if allowed:
+        return True
+    await message.reply(access_manager.format_paywall(), parse_mode="HTML")
+    return False
 
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
     chat_id = str(message.chat.id)
     is_new = save_user(chat_id)
+    access_manager.ensure_user(chat_id)
     notifier.active_users.add(chat_id)
     if is_new:
         print(f"Новый пользователь зарегистрирован: {chat_id}")
@@ -77,10 +106,111 @@ async def cmd_start(message: types.Message):
         "• Напиши <code>Сканер всплесков</code> — и я за пару секунд прочешу 250 монет в поисках аномалий на рынке.\n\n"
         "⌨️ <b>Быстрые команды:</b>\n"
         "🔸 /setup <code>[тикер]</code> — Быстрый поиск сетапа (например: /setup ETH)\n"
-        "🔸 /spikes — Запустить ручной сканер пампов\n\n"
+        "🔸 /spikes — Запустить ручной сканер пампов\n"
+        "🔸 /status — Проверить доступ и пробные сигналы\n"
+        "🔸 /subscribe — Инструкция по оплате USDT\n\n"
         "Удачной торговли! 📈"
     )
     await message.reply(welcome_text, parse_mode="HTML")
+
+@router.message(Command("subscribe"))
+async def cmd_subscribe(message: types.Message):
+    await message.reply(access_manager.format_paywall(), parse_mode="HTML")
+
+@router.message(Command("status"))
+async def cmd_status(message: types.Message):
+    status = access_manager.status(str(message.chat.id))
+    if status["has_paid_access"]:
+        access_text = f"✅ Оплачен до: <b>{format_ts(status['paid_until'])}</b>"
+    else:
+        access_text = "⏳ Активной оплаты нет"
+
+    claim = status.get("payment_claim") or {}
+    claim_text = ""
+    if claim:
+        claim_text = (
+            "\n\nПоследняя заявка на оплату:\n"
+            f"TX: <code>{claim.get('tx_hash', 'н/д')}</code>\n"
+            f"Статус: <b>{claim.get('status', 'pending')}</b>"
+        )
+
+    await message.reply(
+        (
+            "👤 <b>Статус доступа</b>\n\n"
+            f"{access_text}\n"
+            f"Бесплатных сигналов осталось: <b>{status['trial_left']}</b> из {FREE_TRIAL_SIGNALS}"
+            f"{claim_text}"
+        ),
+        parse_mode="HTML",
+    )
+
+@router.message(Command("paid"))
+async def cmd_paid(message: types.Message):
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        await message.reply(
+            "Пришли хеш транзакции так:\n<code>/paid TX_HASH</code>",
+            parse_mode="HTML",
+        )
+        return
+
+    chat_id = str(message.chat.id)
+    tx_hash = parts[1].strip()
+    access_manager.record_payment_claim(chat_id, tx_hash)
+    await message.reply(
+        "✅ Заявка на оплату принята. Админ проверит транзакцию и включит доступ.",
+        parse_mode="HTML",
+    )
+
+    admin_msg = (
+        "💸 <b>Новая заявка на оплату</b>\n\n"
+        f"User: <code>{chat_id}</code>\n"
+        f"TX: <code>{tx_hash}</code>\n\n"
+        f"Выдать доступ на {PAID_ACCESS_HOURS}ч:\n"
+        f"<code>/grant {chat_id}</code>"
+    )
+    for admin_id in ADMIN_CHAT_IDS:
+        try:
+            await bot_instance.send_message(chat_id=admin_id, text=admin_msg, parse_mode="HTML")
+        except Exception as e:
+            print(f"Failed to notify admin {admin_id}: {e}")
+
+@router.message(Command("grant"))
+async def cmd_grant(message: types.Message):
+    if not is_admin(str(message.chat.id)):
+        await message.reply("⛔️ Команда доступна только админу.")
+        return
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.reply("Использование: <code>/grant CHAT_ID [hours]</code>", parse_mode="HTML")
+        return
+    target_chat_id = parts[1]
+    hours = int(parts[2]) if len(parts) >= 3 and parts[2].isdigit() else PAID_ACCESS_HOURS
+    paid_until = access_manager.grant_access(target_chat_id, hours=hours)
+    await message.reply(
+        f"✅ Доступ выдан пользователю <code>{target_chat_id}</code> до <b>{format_ts(paid_until)}</b>",
+        parse_mode="HTML",
+    )
+    try:
+        await bot_instance.send_message(
+            chat_id=target_chat_id,
+            text=f"✅ Оплата подтверждена. Доступ открыт до <b>{format_ts(paid_until)}</b>.",
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        print(f"Failed to notify granted user {target_chat_id}: {e}")
+
+@router.message(Command("revoke"))
+async def cmd_revoke(message: types.Message):
+    if not is_admin(str(message.chat.id)):
+        await message.reply("⛔️ Команда доступна только админу.")
+        return
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.reply("Использование: <code>/revoke CHAT_ID</code>", parse_mode="HTML")
+        return
+    access_manager.revoke_access(parts[1])
+    await message.reply(f"✅ Доступ пользователя <code>{parts[1]}</code> отключен.", parse_mode="HTML")
 
 @router.message(Command("setup"))
 async def cmd_setup(message: types.Message):
@@ -111,6 +241,8 @@ async def fetch_mtf_context(symbol: str) -> dict:
     return dfs_dict
 
 async def handle_full_analysis_request(message: types.Message, coin: str):
+    if not await require_access(message):
+        return
     symbol = await exchange.validate_symbol(coin)
     if not symbol:
         await message.reply(f"❌ Монета {coin} не найдена на бирже MEXC. Проверьте тикер.")
@@ -139,6 +271,8 @@ async def handle_full_analysis_request(message: types.Message, coin: str):
         await message.reply(f"❌ Ошибка при глубоком анализе: {e}")
 
 async def handle_setup_request(message: types.Message, coin: str):
+    if not await require_access(message):
+        return
     symbol = await exchange.validate_symbol(coin)
     if not symbol:
         await message.reply(f"❌ Сетап: Монета {coin} не найдена на MEXC.")
@@ -173,6 +307,8 @@ async def handle_setup_request(message: types.Message, coin: str):
         await message.reply(f"❌ Ошибка при анализе: {e}")
 
 async def handle_spikes_request(message: types.Message):
+    if not await require_access(message):
+        return
     await message.reply("🚀 Запускаю ручной сканер всплесков/пампов по Топ-250 монетам. Это займет пару минут...")
     try:
         symbols = await exchange.get_top_pairs()
@@ -181,7 +317,8 @@ async def handle_spikes_request(message: types.Message):
             df = await exchange.fetch_ohlcv(symbol, "15m")
             if df.empty:
                 continue
-            spike = spike_scanner.scan(df)
+            ticker = await exchange.fetch_ticker_cached(symbol)
+            spike = spike_scanner.scan(df, ticker=ticker)
             if spike:
                 spikes_found.append((symbol, spike))
             await asyncio.sleep(0.05)
@@ -191,7 +328,8 @@ async def handle_spikes_request(message: types.Message):
             return
             
         for sym, spk in spikes_found[:15]:
-            msg = notifier.format_spike_alert(sym, "15m", spk)
+            coin_info = await coin_info_service.get_coin_info(sym)
+            msg = notifier.format_spike_alert(sym, "15m", spk, coin_info=coin_info)
             await message.reply(msg, parse_mode="HTML")
             await asyncio.sleep(0.1)
             

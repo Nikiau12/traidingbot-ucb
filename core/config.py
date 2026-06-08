@@ -17,6 +17,11 @@ AUTO_TRADING_ENABLED = os.getenv("AUTO_TRADING_ENABLED", "False").lower() in ('t
 # Telegram Bot Credentials
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+ADMIN_CHAT_IDS = {
+    chat_id.strip()
+    for chat_id in os.getenv("ADMIN_CHAT_IDS", TELEGRAM_CHAT_ID).split(",")
+    if chat_id.strip()
+}
 
 # Config variables
 TIMEFRAMES = ["15m", "1h", "4h", "1d", "1w"]
@@ -42,6 +47,15 @@ MEXC_LISTING_SNAPSHOT_FILE = os.getenv("MEXC_LISTING_SNAPSHOT_FILE", "mexc_marke
 MEXC_ANNOUNCEMENTS_SNAPSHOT_FILE = os.getenv("MEXC_ANNOUNCEMENTS_SNAPSHOT_FILE", "mexc_announcements_snapshot.json")
 MEXC_LISTING_CHECK_INTERVAL = int(os.getenv("MEXC_LISTING_CHECK_INTERVAL", "600"))
 MEXC_NEW_LISTINGS_URL = os.getenv("MEXC_NEW_LISTINGS_URL", "https://www.mexc.com/announcements/new-listings")
+
+# Payments / access control
+FREE_TRIAL_SIGNALS = int(os.getenv("FREE_TRIAL_SIGNALS", "5"))
+PAID_ACCESS_HOURS = int(os.getenv("PAID_ACCESS_HOURS", "24"))
+USDT_PAYMENT_ADDRESS = os.getenv("USDT_PAYMENT_ADDRESS", "")
+USDT_PAYMENT_AMOUNT = os.getenv("USDT_PAYMENT_AMOUNT", "10")
+USDT_PAYMENT_NETWORK = os.getenv("USDT_PAYMENT_NETWORK", "TRC20")
+ACCESS_STATE_FILE = os.getenv("ACCESS_STATE_FILE", "user_access.json")
+USER_REGISTRY_FILE = os.getenv("USER_REGISTRY_FILE", "users.json")
 
 # SMC Analyzer parameters
 SMC_LOOKBACK_PERIOD = 200 # Candles to look back for structure

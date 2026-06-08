@@ -1,5 +1,5 @@
 from aiogram import Bot
-from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ADMIN_CHAT_IDS
 from core.smart_engine import Regime, MTFVerdict
 import asyncio
 import html
@@ -34,9 +34,10 @@ class Notifier:
         "choppy range environment": "Опасная торговля внутри узкого диапазона"
     }
 
-    def __init__(self, bot: Bot = None, active_users: set = None):
+    def __init__(self, bot: Bot = None, active_users: set = None, access_manager=None):
         self.bot = bot
         self.active_users = active_users if active_users is not None else set()
+        self.access_manager = access_manager
         if TELEGRAM_CHAT_ID: # Fallback just in case
             self.active_users.add(str(TELEGRAM_CHAT_ID))
             
@@ -46,7 +47,7 @@ class Notifier:
         k = str(key).lower()
         return self.TRANSLATIONS.get(k, key.replace('_', ' ').capitalize())
 
-    async def send_message(self, text: str):
+    async def send_message(self, text: str, gated: bool = True):
         if not self.bot:
             print(f"[Notifier - console only] {text}")
             return
@@ -57,6 +58,16 @@ class Notifier:
 
         for chat_id in self.active_users:
             try:
+                if gated and self.access_manager and str(chat_id) not in ADMIN_CHAT_IDS:
+                    allowed, _ = self.access_manager.consume_signal(str(chat_id))
+                    if not allowed:
+                        if self.access_manager.should_send_paywall(str(chat_id)):
+                            await self.bot.send_message(
+                                chat_id=chat_id,
+                                text=self.access_manager.format_paywall(),
+                                parse_mode="HTML",
+                            )
+                        continue
                 await self.bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
             except Exception as e:
                 print(f"Failed to send telegram message to {chat_id}: {e}")
