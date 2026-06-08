@@ -34,6 +34,14 @@ MEMECOIN_V2_LIMIT = 250
 SPIKE_VOLUME_MULTIPLIER = 4.0 # Candle volume must be 4x the moving average (stricter for accuracy)
 SPIKE_PRICE_ATR_MULTIPLIER = 2.5 # Candle body must be 2.5x the ATR
 SPIKE_MIN_PCT_CHANGE = 2.0 # Minimum % move in 15m candle to trigger pump alert
+SMART_SPIKE_MIN_SCORE = int(os.getenv("SMART_SPIKE_MIN_SCORE", "65"))
+SMART_SPIKE_MIN_QUOTE_VOLUME = float(os.getenv("SMART_SPIKE_MIN_QUOTE_VOLUME", "500000"))
+
+# New listing watcher
+MEXC_LISTING_SNAPSHOT_FILE = os.getenv("MEXC_LISTING_SNAPSHOT_FILE", "mexc_markets_snapshot.json")
+MEXC_ANNOUNCEMENTS_SNAPSHOT_FILE = os.getenv("MEXC_ANNOUNCEMENTS_SNAPSHOT_FILE", "mexc_announcements_snapshot.json")
+MEXC_LISTING_CHECK_INTERVAL = int(os.getenv("MEXC_LISTING_CHECK_INTERVAL", "600"))
+MEXC_NEW_LISTINGS_URL = os.getenv("MEXC_NEW_LISTINGS_URL", "https://www.mexc.com/announcements/new-listings")
 
 # SMC Analyzer parameters
 SMC_LOOKBACK_PERIOD = 200 # Candles to look back for structure

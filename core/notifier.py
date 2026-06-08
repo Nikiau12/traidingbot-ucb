@@ -2,6 +2,7 @@ from aiogram import Bot
 from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.smart_engine import Regime, MTFVerdict
 import asyncio
+import html
 
 class Notifier:
     TRANSLATIONS = {
@@ -63,18 +64,103 @@ class Notifier:
     async def close(self):
         pass # The bot session will be closed by the main aiogram loop
 
-    def format_spike_alert(self, symbol, timeframe, spike_data):
+    def _money(self, value):
+        if value is None:
+            return "н/д"
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return "н/д"
+        if value >= 1_000_000_000:
+            return f"${value / 1_000_000_000:.2f}B"
+        if value >= 1_000_000:
+            return f"${value / 1_000_000:.2f}M"
+        if value >= 1_000:
+            return f"${value / 1_000:.1f}K"
+        return f"${value:.0f}"
+
+    def _pct(self, value):
+        if value is None:
+            return "н/д"
+        try:
+            return f"{float(value):+.2f}%"
+        except (TypeError, ValueError):
+            return "н/д"
+
+    def format_listing_alert(self, symbol, coin_info=None):
+        coin_info = coin_info or {}
+        rank = coin_info.get("rank") or "н/д"
+        safe_symbol = html.escape(str(symbol))
+        safe_name = html.escape(str(coin_info.get('name', symbol)))
+        safe_risk = html.escape(str(coin_info.get('risk_label', 'unknown')))
+        return (
+            f"🆕 <b>Новая пара на MEXC: {safe_symbol}</b>\n\n"
+            f"Монета: <b>{safe_name}</b>\n"
+            f"Рейтинг CoinGecko: #{rank}\n"
+            f"Market Cap: {self._money(coin_info.get('market_cap'))}\n"
+            f"24h Volume: {self._money(coin_info.get('volume_24h'))}\n"
+            f"Риск-профиль: <b>{safe_risk}</b>\n\n"
+            f"⚠️ Новые листинги часто двигаются резко. Не входи без плана и стопа."
+        )
+
+    def format_listing_news_alert(self, announcement, coin_info=None):
+        coin_info = coin_info or {}
+        title = html.escape(str(announcement.get("title", "MEXC listing news")))
+        url = html.escape(str(announcement.get("url", "")))
+        symbols = ", ".join(announcement.get("symbols", [])) or "н/д"
+        rank = coin_info.get("rank") or "н/д"
+        safe_name = html.escape(str(coin_info.get('name', symbols)))
+        safe_risk = html.escape(str(coin_info.get('risk_label', 'unknown')))
+        return (
+            f"📰 <b>Новость MEXC по листингу</b>\n\n"
+            f"<b>{title}</b>\n"
+            f"Тикеры: <b>{html.escape(symbols)}</b>\n"
+            f"Опубликовано: {html.escape(str(announcement.get('published_at', 'н/д')))}\n\n"
+            f"Монета: <b>{safe_name}</b>\n"
+            f"Рейтинг CoinGecko: #{rank}\n"
+            f"Market Cap: {self._money(coin_info.get('market_cap'))}\n"
+            f"24h Volume: {self._money(coin_info.get('volume_24h'))}\n"
+            f"Риск-профиль: <b>{safe_risk}</b>\n\n"
+            f"Ссылка: {url}"
+        )
+
+    def format_spike_alert(self, symbol, timeframe, spike_data, coin_info=None):
+        coin_info = coin_info or {}
         direction = "🟢 LONG (Памп)" if spike_data['direction'] == 'up' else "🔴 SHORT (Дамп)"
+        reasons = spike_data.get("reasons", [])
+        risk_flags = spike_data.get("risk_flags", [])
+        rank = coin_info.get("rank") or "н/д"
+        safe_symbol = html.escape(str(symbol))
+        safe_name = html.escape(str(coin_info.get('name', symbol)))
+        safe_risk = html.escape(str(coin_info.get('risk_label', 'unknown')))
+
         msg = (
-            f"🚀 <b>ВСПЛЕСК АКТИВНОСТИ: {symbol}</b>\n"
-            f"Таймфрейм: {timeframe}\n"
-            f"Направление: {direction}\n"
+            f"🚀 <b>УМНЫЙ СИГНАЛ: {safe_symbol}</b>\n\n"
+            f"Направление: <b>{direction}</b>\n"
+            f"Качество: <b>{spike_data.get('score', 0)}/100 ({spike_data.get('quality', 'D')})</b>\n"
+            f"Таймфрейм: {timeframe}\n\n"
             f"Цена ДО: {spike_data['start_price']:.5f}\n"
             f"Цена СЕЙЧАС: {spike_data['current_price']:.5f}\n"
             f"Изменение цены: {spike_data['pct_change']:.2f}%\n"
-            f"Тип всплеска: {spike_data['type']}\n"
-            f"Объем: x{spike_data['volume_ratio']:.1f} от среднего"
+            f"Объем свечи: x{spike_data['volume_ratio']:.1f} к среднему\n"
+            f"24h Volume: {self._money(spike_data.get('quote_volume') or coin_info.get('volume_24h'))}\n\n"
+            f"Монета: <b>{safe_name}</b>\n"
+            f"Рейтинг CoinGecko: #{rank}\n"
+            f"Market Cap: {self._money(coin_info.get('market_cap'))}\n"
+            f"Риск-профиль: <b>{safe_risk}</b>\n"
+            f"1h / 24h: {self._pct(coin_info.get('price_change_1h'))} / {self._pct(coin_info.get('price_change_24h'))}"
         )
+
+        if reasons:
+            msg += "\n\n✅ <b>Почему сигнал важен:</b>\n"
+            for reason in reasons:
+                msg += f"• {html.escape(str(reason))}\n"
+
+        if risk_flags:
+            msg += "\n⚠️ <b>Риски:</b>\n"
+            for risk in risk_flags:
+                msg += f"• {html.escape(str(risk))}\n"
+
         return msg
 
     def format_smc_setup(self, symbol, timeframe, setup_data, context_score=None, verdict: MTFVerdict=None):

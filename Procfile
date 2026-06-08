@@ -1,1 +1,1 @@
-worker: python bot_bingx.py
+worker: python bot_mexc.py

@@ -9,7 +9,9 @@ from core.smc_analyzer import SMCAnalyzer
 from core.spike_scanner import SpikeScanner
 from core.notifier import Notifier
 from core.smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
-from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TIMEFRAMES, TOP_COINS_LIMIT, TARGET_COINS
+from core.coin_info_service import CoinInfoService
+from core.listing_watcher import MexcListingWatcher
+from core.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TIMEFRAMES, TOP_COINS_LIMIT, TARGET_COINS, SMART_SPIKE_MIN_SCORE, SMART_SPIKE_MIN_QUOTE_VOLUME, MEXC_LISTING_SNAPSHOT_FILE, MEXC_ANNOUNCEMENTS_SNAPSHOT_FILE, MEXC_LISTING_CHECK_INTERVAL, MEXC_NEW_LISTINGS_URL
 
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
@@ -46,6 +48,12 @@ smc_analyzer = SMCAnalyzer()
 spike_scanner = SpikeScanner()
 smart_engine = SmartContextEngine()
 mtf_engine = MTFFusionEngine()
+coin_info_service = CoinInfoService()
+listing_watcher = MexcListingWatcher(
+    MEXC_LISTING_SNAPSHOT_FILE,
+    announcements_snapshot_file=MEXC_ANNOUNCEMENTS_SNAPSHOT_FILE,
+    announcements_url=MEXC_NEW_LISTINGS_URL,
+)
 # Передаем set пользователей в Notifier
 notifier = Notifier(bot_instance, active_users)
 
@@ -53,8 +61,8 @@ notifier = Notifier(bot_instance, active_users)
 async def cmd_start(message: types.Message):
     chat_id = str(message.chat.id)
     is_new = save_user(chat_id)
+    notifier.active_users.add(chat_id)
     if is_new:
-        notifier.active_users.add(chat_id)
         print(f"Новый пользователь зарегистрирован: {chat_id}")
     
     welcome_text = (
@@ -73,9 +81,6 @@ async def cmd_start(message: types.Message):
         "Удачной торговли! 📈"
     )
     await message.reply(welcome_text, parse_mode="HTML")
-smc_analyzer = SMCAnalyzer()
-spike_scanner = SpikeScanner()
-notifier = Notifier(bot_instance)
 
 @router.message(Command("setup"))
 async def cmd_setup(message: types.Message):
@@ -266,13 +271,20 @@ async def market_scanner_loop():
                     
                     # ----- Мониторинг всплесков (только на 15m) -----
                     if tf == "15m":
-                        spike = spike_scanner.scan(df)
+                        ticker = await exchange.fetch_ticker_cached(symbol)
+                        spike = spike_scanner.scan(df, ticker=ticker)
                         if spike:
+                            if spike.get("score", 0) < SMART_SPIKE_MIN_SCORE:
+                                continue
+                            if spike.get("quote_volume", 0) and spike["quote_volume"] < SMART_SPIKE_MIN_QUOTE_VOLUME:
+                                continue
+
                             spike_key = f"{symbol}_{tf}_{spike['direction']}"
                             last_time = last_spike_alert.get(spike_key, 0)
                             
                             if current_time - last_time > SPIKE_COOLDOWN:
-                                msg = notifier.format_spike_alert(symbol, tf, spike)
+                                coin_info = await coin_info_service.get_coin_info(symbol)
+                                msg = notifier.format_spike_alert(symbol, tf, spike, coin_info=coin_info)
                                 await notifier.send_message(msg)
                                 last_spike_alert[spike_key] = current_time # Обновляем кэш
                                 await asyncio.sleep(0.1)
@@ -323,6 +335,32 @@ async def market_scanner_loop():
             print(f"Ошибка в главном цикле: {e}")
             await asyncio.sleep(10)
 
+async def listing_watcher_loop():
+    while True:
+        try:
+            announcements = await listing_watcher.check_new_announcements()
+            for item in announcements[:10]:
+                symbol = item["symbols"][0] if item.get("symbols") else ""
+                coin_info = await coin_info_service.get_coin_info(symbol) if symbol else {}
+                msg = notifier.format_listing_news_alert(item, coin_info=coin_info)
+                await notifier.send_message(msg)
+                await asyncio.sleep(0.2)
+
+            new_symbols = await listing_watcher.check_new_markets(exchange)
+            for symbol in new_symbols[:20]:
+                coin_info = await coin_info_service.get_coin_info(symbol)
+                msg = notifier.format_listing_alert(symbol, coin_info=coin_info)
+                await notifier.send_message(msg)
+                await asyncio.sleep(0.2)
+            if new_symbols:
+                print(f"Новые MEXC пары: {', '.join(new_symbols[:20])}")
+            await asyncio.sleep(MEXC_LISTING_CHECK_INTERVAL)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"Ошибка watcher листингов: {e}")
+            await asyncio.sleep(60)
+
 async def main():
     print("Инициализация SMC Трейдинг Бота с интерактивным меню...")
     
@@ -330,12 +368,14 @@ async def main():
     
     # Запускаем фоновый сканнер рынка
     scanner_task = asyncio.create_task(market_scanner_loop())
+    listing_task = asyncio.create_task(listing_watcher_loop())
     
     try:
         # Запускаем поллинг телеграм-бота (для команд)
         await dp.start_polling(bot_instance)
     finally:
         scanner_task.cancel()
+        listing_task.cancel()
         await exchange.close()
         await notifier.close()
 

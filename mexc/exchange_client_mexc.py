@@ -1,6 +1,7 @@
 import asyncio
 import ccxt.async_support as ccxt
 import pandas as pd
+import time
 from core.config import MEXC_API_KEY, MEXC_API_SECRET, MEMECOIN_V2_LIMIT, TARGET_COINS
 
 class ExchangeClient:
@@ -14,6 +15,8 @@ class ExchangeClient:
             }
         })
         self._markets_loaded = False
+        self._tickers_cache = {}
+        self._tickers_cache_ts = 0
         
     async def load_markets_if_needed(self):
         if not self._markets_loaded:
@@ -48,7 +51,7 @@ class ExchangeClient:
     async def get_top_pairs(self):
         """Fetches the top N USDT perpetual pairs by 24h quote volume."""
         try:
-            tickers = await self.exchange.fetch_tickers()
+            tickers = await self.fetch_tickers_cached()
             usdt_pairs = []
             for symbol, ticker in tickers.items():
                 # On MEXC futures, symbols are usually like BTC/USDT:USDT
@@ -73,6 +76,18 @@ class ExchangeClient:
             print(f"Error fetching top pairs: {e}")
             target_symbols = [f"{coin}/USDT" for coin in TARGET_COINS]
             return target_symbols
+
+    async def fetch_tickers_cached(self, ttl_seconds: int = 60) -> dict:
+        now = time.time()
+        if self._tickers_cache and now - self._tickers_cache_ts < ttl_seconds:
+            return self._tickers_cache
+        self._tickers_cache = await self.exchange.fetch_tickers()
+        self._tickers_cache_ts = now
+        return self._tickers_cache
+
+    async def fetch_ticker_cached(self, symbol: str) -> dict:
+        tickers = await self.fetch_tickers_cached()
+        return tickers.get(symbol, {})
 
     async def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int = 200) -> pd.DataFrame:
         """Fetch OHLCV historical data and return as a Pandas DataFrame."""
