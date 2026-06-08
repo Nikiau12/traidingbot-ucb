@@ -98,6 +98,17 @@ class Notifier:
         except (TypeError, ValueError):
             return "н/д"
 
+    def _coin_type_text(self, risk_label):
+        labels = {
+            "blue chip": "крупная монета — высокая ликвидность, риск ниже среднего",
+            "large cap": "крупная/сильная монета — обычно ликвидная, риск умеренный",
+            "mid cap": "средняя монета — потенциал выше, риск заметный",
+            "small cap": "маленькая монета — высокая волатильность и повышенный риск",
+            "micro cap": "микрокап — очень рискованная монета, возможны резкие пампы/дампы",
+            "unknown": "тип не определен — данных мало, риск повышенный",
+        }
+        return labels.get(str(risk_label or "unknown").lower(), labels["unknown"])
+
     def format_listing_alert(self, symbol, coin_info=None):
         coin_info = coin_info or {}
         rank = coin_info.get("rank") or "н/д"
@@ -144,6 +155,7 @@ class Notifier:
         safe_symbol = html.escape(str(symbol))
         safe_name = html.escape(str(coin_info.get('name', symbol)))
         safe_risk = html.escape(str(coin_info.get('risk_label', 'unknown')))
+        safe_coin_type = html.escape(self._coin_type_text(coin_info.get('risk_label')))
 
         msg = (
             f"🚀 <b>УМНЫЙ СИГНАЛ: {safe_symbol}</b>\n\n"
@@ -159,6 +171,7 @@ class Notifier:
             f"Рейтинг CoinGecko: #{rank}\n"
             f"Market Cap: {self._money(coin_info.get('market_cap'))}\n"
             f"Риск-профиль: <b>{safe_risk}</b>\n"
+            f"Тип монеты: <b>{safe_coin_type}</b>\n"
             f"1h / 24h: {self._pct(coin_info.get('price_change_1h'))} / {self._pct(coin_info.get('price_change_24h'))}"
         )
 
