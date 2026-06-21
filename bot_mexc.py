@@ -698,6 +698,11 @@ async def handle_text(message: types.Message):
 last_spike_alert: dict = {}
 last_setup_alert: dict = {}
 _last_plan_4h_block: int = -1
+_last_priority_1h_block: int = -1
+
+# Приоритетные монеты — сканируются каждый час
+PRIORITY_COINS  = ["BTC_USDT", "ETH_USDT", "SOL_USDT"]
+PRIORITY_COOLDOWN = 2 * 3600  # повтор не чаще раза в 2 часа
 
 # Токены которые не нужно торговать — стоковые и левериджные
 _JUNK_SUFFIXES = ("STOCK", "BULL", "BEAR", "ETF", "UP", "DOWN", "3L", "3S")
@@ -899,6 +904,61 @@ async def plan_scanner_loop():
         await asyncio.sleep(60)
 
 
+async def priority_scan_loop():
+    """Сканирует BTC/ETH/SOL каждый час — через 5 мин после закрытия 1h свечи."""
+    global _last_priority_1h_block
+    while True:
+        try:
+            now = datetime.now(timezone.utc)
+            block = now.hour  # 1h block = текущий час
+            minutes_since = now.minute
+
+            if minutes_since >= 5 and _last_priority_1h_block != block:
+                _last_priority_1h_block = block
+                print(f"[PriorityScanner] 1h block {block:02d}:00 — scanning BTC/ETH/SOL...")
+                try:
+                    loop = asyncio.get_event_loop()
+                    results = await loop.run_in_executor(
+                        None,
+                        lambda: sc.scan_all(
+                            PRIORITY_COINS,
+                            deposit=1000,
+                            risk_pct=TRADE_CFG["default_risk_pct"],
+                            lev=TRADE_CFG["default_lev"],
+                            margin=TRADE_CFG["default_margin"],
+                            workers=3,
+                        ),
+                    )
+                    sent = 0
+                    for plan in results:
+                        conf   = _conf(plan)
+                        symbol = plan.get("symbol", "")
+                        side   = (plan.get("primary") or {}).get("side", "skip")
+
+                        if conf < SCAN_CFG["min_confidence"] or plan.get("side") == "skip":
+                            continue
+                        if not st.should_send_alert(symbol, side, conf,
+                                                    cooldown_secs=PRIORITY_COOLDOWN):
+                            continue
+
+                        alert = _fmt_auto_alert(plan, symbol, side.upper(), conf)
+                        await notifier.send_message(alert)
+                        st.mark_sent(symbol, side, conf)
+                        sent += 1
+                        await asyncio.sleep(0.3)
+
+                    print(f"[PriorityScanner] Done: {sent} alerts sent")
+                except Exception as e:
+                    print(f"[PriorityScanner] Error: {e}")
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"priority_scan_loop error: {e}")
+
+        await asyncio.sleep(60)
+
+
 async def listing_watcher_loop():
     while True:
         try:
@@ -928,10 +988,11 @@ async def main():
     t1 = asyncio.create_task(market_scanner_loop())
     t2 = asyncio.create_task(plan_scanner_loop())
     t3 = asyncio.create_task(listing_watcher_loop())
+    t4 = asyncio.create_task(priority_scan_loop())
     try:
         await dp.start_polling(bot_instance)
     finally:
-        t1.cancel(); t2.cancel(); t3.cancel()
+        t1.cancel(); t2.cancel(); t3.cancel(); t4.cancel()
         await exchange.close()
         await notifier.close()
 

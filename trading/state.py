@@ -26,13 +26,14 @@ def _save(state: Dict) -> None:
     os.replace(tmp, STATE_PATH)
 
 
-def should_send_alert(symbol: str, side: str, conf: float) -> bool:
+def should_send_alert(symbol: str, side: str, conf: float,
+                       cooldown_secs: int = 4 * 3600) -> bool:
     prev = _load().get("alerts", {}).get(symbol)
     if prev is None:
         return True
     if prev.get("side") != side:
         return True
-    if time.time() - prev.get("ts", 0) > 4 * 3600:
+    if time.time() - prev.get("ts", 0) > cooldown_secs:
         return True
     if abs(conf - prev.get("conf", 0)) >= 0.10:
         return True
