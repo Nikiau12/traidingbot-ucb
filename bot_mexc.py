@@ -66,6 +66,14 @@ router = Router()
 SPIKE_COOLDOWN = 4 * 3600
 SETUP_COOLDOWN = 8 * 3600
 SCAN_REFERENCE_DEPOSIT = 1000.0
+ENGLISH_START_MESSAGE = (
+    "👋 Hello! I'm <b>UCB_TRADING_BOT</b>\n\n"
+    "Your trading assistant for MEXC Futures. I analyse the market, find setups "
+    "and calculate entry, stop-loss, take-profits and position size.\n\n"
+    "💰 <b>Deposit required</b>\n"
+    "Before you can use the bot, send your current trading deposit as one number.\n\n"
+    "Example: <code>5000</code>"
+)
 
 
 class DepositSetup(StatesGroup):
@@ -93,7 +101,15 @@ def save_user(chat_id: str):
         return True
     return False
 
-active_users = load_users()
+def _has_saved_deposit(user_id) -> bool:
+    try:
+        return float(st.get_user_settings(int(user_id)).get("deposit") or 0) > 0
+    except (TypeError, ValueError):
+        return False
+
+
+# Users without a deposit finish onboarding before receiving automatic signals.
+active_users = {chat_id for chat_id in load_users() if _has_saved_deposit(chat_id)}
 
 # ── старые сервисы ──
 exchange        = ExchangeClient()
@@ -116,6 +132,10 @@ listing_watcher = MexcListingWatcher(
     announcements_url=MEXC_NEW_LISTINGS_URL,
 )
 notifier = Notifier(bot_instance, active_users, access_manager=access_manager)
+# Notifier may add the fallback chat from the environment; onboarding still applies.
+for _chat_id in list(notifier.active_users):
+    if not _has_saved_deposit(_chat_id):
+        notifier.active_users.discard(_chat_id)
 
 # ═══════════════════════════════════════════
 # ХЕЛПЕРЫ
@@ -173,6 +193,18 @@ async def require_access(message: types.Message) -> bool:
     await message.reply(access_manager.format_paywall(), parse_mode="HTML")
     return False
 
+
+async def require_deposit(message: types.Message) -> bool:
+    if _has_saved_deposit(message.from_user.id):
+        return True
+    lang = get_lang(message.from_user.id)
+    await message.reply(
+        _t(lang, "no_deposit"),
+        parse_mode="HTML",
+        reply_markup=_deposit_keyboard(lang),
+    )
+    return False
+
 def _whop_check(license_key: str) -> dict:
     """Синхронный запрос к Whop API — запускать через run_in_executor."""
     import requests
@@ -192,27 +224,36 @@ def _whop_check(license_key: str) -> dict:
 # ═══════════════════════════════════════════
 
 @router.message(Command("start"))
-async def cmd_start(message: types.Message):
+async def cmd_start(message: types.Message, state: FSMContext):
     chat_id = str(message.chat.id)
     is_new = save_user(chat_id)
     access_manager.ensure_user(chat_id)
-    notifier.active_users.add(chat_id)
     if is_new:
         print(f"Новый пользователь: {chat_id}")
-    lang = get_lang(message.from_user.id)
-    await message.reply(_t(lang, "welcome"), parse_mode="HTML", reply_markup=_lang_keyboard(lang))
+    st.set_user_lang(message.from_user.id, "en")
+    if not _has_saved_deposit(message.from_user.id):
+        notifier.active_users.discard(chat_id)
+        await state.set_state(DepositSetup.waiting_for_amount)
+        await message.reply(ENGLISH_START_MESSAGE, parse_mode="HTML")
+        return
+
+    notifier.active_users.add(chat_id)
+    await state.clear()
+    await message.reply(_t("en", "welcome"), parse_mode="HTML", reply_markup=_lang_keyboard("en"))
 
 
 @router.callback_query(lambda c: c.data.startswith("lang_"))
-async def handle_lang_callback(callback: types.CallbackQuery):
+async def handle_lang_callback(callback: types.CallbackQuery, state: FSMContext):
     lang = callback.data.split("_")[1]
     st.set_user_lang(callback.from_user.id, lang)
     settings = st.get_user_settings(callback.from_user.id)
     text = _t(lang, "lang_set")
     reply_markup = None
     if not settings.get("deposit"):
-        text += "\n\n" + _t(lang, "deposit_start_hint")
-        reply_markup = _deposit_keyboard(lang)
+        text += "\n\n" + _t(lang, "deposit_start_hint") + "\n\n" + _t(lang, "deposit_prompt")
+        await state.set_state(DepositSetup.waiting_for_amount)
+    else:
+        notifier.active_users.add(str(callback.message.chat.id))
     await callback.message.edit_text(text, parse_mode="HTML", reply_markup=reply_markup)
     await callback.answer()
 
@@ -238,10 +279,14 @@ async def handle_deposit_amount(message: types.Message, state: FSMContext):
         return
 
     st.set_user_setting(message.from_user.id, "deposit", deposit)
+    save_user(str(message.chat.id))
+    access_manager.ensure_user(str(message.chat.id))
+    notifier.active_users.add(str(message.chat.id))
     await state.clear()
     await message.reply(
         _t(lang, "deposit_saved", deposit=f"{deposit:,.2f}"),
         parse_mode="HTML",
+        reply_markup=_lang_keyboard(lang),
     )
 
 
@@ -434,6 +479,8 @@ async def cmd_activate(message: types.Message):
 
 @router.message(Command("setup"))
 async def cmd_setup(message: types.Message):
+    if not await require_deposit(message):
+        return
     parts = message.text.split()
     if len(parts) < 2:
         await message.reply("ℹ️ Использование: <code>/setup BTC</code>", parse_mode="HTML")
@@ -443,6 +490,8 @@ async def cmd_setup(message: types.Message):
 
 @router.message(Command("spikes"))
 async def cmd_spikes(message: types.Message):
+    if not await require_deposit(message):
+        return
     await _handle_spikes(message)
 
 # ═══════════════════════════════════════════
@@ -451,6 +500,8 @@ async def cmd_spikes(message: types.Message):
 
 @router.message(Command("plan"))
 async def cmd_plan(message: types.Message):
+    if not await require_deposit(message):
+        return
     if not await require_access(message):
         return
     uid  = message.from_user.id
@@ -464,10 +515,6 @@ async def cmd_plan(message: types.Message):
     kv       = _parse_kv(parts[1:])
     settings = st.get_user_settings(uid)
     deposit  = float(kv["deposit"]) if "deposit" in kv else settings.get("deposit")
-
-    if not deposit:
-        await message.reply(_t(lang, "no_deposit"), parse_mode="HTML")
-        return
 
     risk_pct = float(kv.get("risk",   settings["risk_pct"]))
     lev      = float(kv.get("lev",    settings["lev"]))
@@ -498,9 +545,20 @@ async def cmd_set(message: types.Message):
         if k not in allowed:
             await message.reply(_t(lang, "set_unknown", key=k), parse_mode="HTML")
             return
-        val = v if k == "margin" else float(v)
+        try:
+            val = v if k == "margin" else float(v)
+        except ValueError:
+            await message.reply(_t(lang, "deposit_invalid"), parse_mode="HTML")
+            return
+        if k == "deposit" and val <= 0:
+            await message.reply(_t(lang, "deposit_invalid"), parse_mode="HTML")
+            return
         st.set_user_setting(uid, allowed[k], val)
         updated.append(f"{k}={v}")
+    if _has_saved_deposit(uid):
+        save_user(str(message.chat.id))
+        access_manager.ensure_user(str(message.chat.id))
+        notifier.active_users.add(str(message.chat.id))
     await message.reply(_t(lang, "set_saved", params=", ".join(updated)), parse_mode="HTML")
 
 
@@ -521,19 +579,14 @@ async def cmd_settings(message: types.Message):
 
 @router.message(Command("scan"))
 async def cmd_scan(message: types.Message):
+    if not await require_deposit(message):
+        return
     if not await require_access(message):
         return
     uid      = message.from_user.id
     lang     = get_lang(uid)
     settings = st.get_user_settings(uid)
-    deposit = settings.get("deposit") or SCAN_REFERENCE_DEPOSIT
-
-    if not settings.get("deposit"):
-        await message.reply(
-            _t(lang, "scan_reference_deposit", deposit=f"{SCAN_REFERENCE_DEPOSIT:,.0f}"),
-            parse_mode="HTML",
-            reply_markup=_deposit_keyboard(lang),
-        )
+    deposit = settings["deposit"]
 
     status_msg = await message.reply(
         _t(lang, "scan_starting", top_n=SCAN_CFG["top_n_symbols"]), parse_mode="HTML"
@@ -569,14 +622,13 @@ async def cmd_scan(message: types.Message):
 
 @router.message(Command("digest"))
 async def cmd_digest(message: types.Message):
+    if not await require_deposit(message):
+        return
     if not await require_access(message):
         return
     uid      = message.from_user.id
     lang     = get_lang(uid)
     settings = st.get_user_settings(uid)
-    if not settings.get("deposit"):
-        await message.reply(_t(lang, "no_deposit"), parse_mode="HTML")
-        return
     status_msg = await message.reply(_t(lang, "digest_preparing"), parse_mode="HTML")
     await _run_digest(str(message.chat.id), settings, lang, status_msg=status_msg)
 

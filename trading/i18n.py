@@ -25,7 +25,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "deposit_button": "💰 Указать депозит",
         "deposit_start_hint": (
             "Укажи депозит сейчас, чтобы бот рассчитывал размер позиции и риск именно для тебя. "
-            "Сканирование работает и без депозита — тогда расчёт будет показан на примере 1 000 USDT."
+            "До этого планы, сканирование и автоматические сигналы недоступны."
         ),
         "deposit_prompt": "💰 Отправь сумму депозита одним числом, например: <code>5000</code>",
         "deposit_saved": "✅ Депозит сохранён: <b>{deposit} USDT</b>\n\nТеперь можешь использовать /scan или /plan BTC_USDT.",
@@ -162,8 +162,8 @@ STRINGS: dict[str, dict[str, Any]] = {
         "choose_lang": "🌐 Choose your language:",
         "deposit_button": "💰 Set deposit",
         "deposit_start_hint": (
-            "Set your deposit now so position size and risk are calculated for you. "
-            "Scanning also works without it, using a 1,000 USDT reference deposit."
+            "Set your deposit now so position size and risk can be calculated for you. "
+            "The deposit is required before plans, scans and automatic signals are available."
         ),
         "deposit_prompt": "💰 Send your deposit as a number, for example: <code>5000</code>",
         "deposit_saved": "✅ Deposit saved: <b>{deposit} USDT</b>\n\nYou can now use /scan or /plan BTC_USDT.",
@@ -216,10 +216,10 @@ STRINGS: dict[str, dict[str, Any]] = {
             "🌐 Change language → /start"
         ),
         "no_deposit": (
-            "⚠️ Deposit not set.\n\n"
-            "Set your deposit once:\n"
-            "<code>/set deposit=5000</code>\n\n"
-            "The bot will remember it — no need to enter it again."
+            "⚠️ <b>Deposit required</b>\n\n"
+            "Tap the button below and send your trading deposit as one number.\n"
+            "Example: <code>5000</code>\n\n"
+            "The bot saves it and uses it for every position calculation."
         ),
         "set_usage": (
             "Usage:\n"
@@ -300,7 +300,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "deposit_button": "💰 Kapital festlegen",
         "deposit_start_hint": (
             "Lege dein Kapital jetzt fest, damit Positionsgröße und Risiko für dich berechnet werden. "
-            "Der Scan funktioniert auch ohne Angabe mit einem Referenzwert von 1.000 USDT."
+            "Pläne, Scans und automatische Signale sind erst danach verfügbar."
         ),
         "deposit_prompt": "💰 Sende dein Kapital als Zahl, zum Beispiel: <code>5000</code>",
         "deposit_saved": "✅ Kapital gespeichert: <b>{deposit} USDT</b>\n\nDu kannst jetzt /scan oder /plan BTC_USDT nutzen.",
@@ -437,7 +437,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "deposit_button": "💰 Définir le dépôt",
         "deposit_start_hint": (
             "Indique ton dépôt pour calculer la taille de position et le risque selon ton capital. "
-            "Le scan fonctionne aussi sans dépôt avec une référence de 1 000 USDT."
+            "Les plans, scans et signaux automatiques seront disponibles ensuite."
         ),
         "deposit_prompt": "💰 Envoie ton dépôt sous forme de nombre, par exemple : <code>5000</code>",
         "deposit_saved": "✅ Dépôt enregistré : <b>{deposit} USDT</b>\n\nTu peux maintenant utiliser /scan ou /plan BTC_USDT.",
@@ -574,7 +574,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "deposit_button": "💰 Indicar depósito",
         "deposit_start_hint": (
             "Indica tu depósito para calcular el tamaño de posición y el riesgo según tu capital. "
-            "El escaneo también funciona sin depósito usando una referencia de 1.000 USDT."
+            "Los planes, escaneos y señales automáticas estarán disponibles después."
         ),
         "deposit_prompt": "💰 Envía tu depósito como un número, por ejemplo: <code>5000</code>",
         "deposit_saved": "✅ Depósito guardado: <b>{deposit} USDT</b>\n\nYa puedes usar /scan o /plan BTC_USDT.",
