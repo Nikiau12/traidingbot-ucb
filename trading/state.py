@@ -47,3 +47,13 @@ def mark_sent(symbol: str, side: str, conf: float) -> None:
         "ts": time.time(),
     }
     _save(state)
+
+
+def get_user_lang(user_id: int) -> str:
+    return _load().get("user_langs", {}).get(str(user_id), "en")
+
+
+def set_user_lang(user_id: int, lang: str) -> None:
+    state = _load()
+    state.setdefault("user_langs", {})[str(user_id)] = lang
+    _save(state)
