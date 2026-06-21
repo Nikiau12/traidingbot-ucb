@@ -1,0 +1,19 @@
+{
+  "telegram": {
+    "token": "YOUR_BOT_TOKEN_HERE",
+    "chat_id": "YOUR_CHAT_ID_HERE"
+  },
+  "trading": {
+    "deposit": 3000,
+    "risk_pct": 1.0,
+    "lev": 20,
+    "margin": "cross"
+  },
+  "scanner": {
+    "min_confidence": 0.60,
+    "top_n_symbols": 250,
+    "scan_delay_after_4h_close_min": 5,
+    "daily_digest_utc_hour": 8,
+    "workers": 10
+  }
+}
