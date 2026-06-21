@@ -108,17 +108,61 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     uid  = update.effective_user.id
     lang = get_lang(uid)
     cfg  = load_config()
-    t_cfg, s_cfg = cfg["trading"], cfg["scanner"]
+    s_cfg = cfg["scanner"]
 
     await update.message.reply_html(
         t(lang, "help",
           top_n=s_cfg["top_n_symbols"],
-          deposit=t_cfg["deposit"],
-          risk=t_cfg["risk_pct"],
-          lev=t_cfg["lev"],
           digest_hour=s_cfg["daily_digest_utc_hour"],
           ),
     )
+
+
+# ───────────────────────── /set ─────────────────────────
+
+async def cmd_set(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    uid  = update.effective_user.id
+    lang = get_lang(uid)
+    args = context.args or []
+    kv   = _parse_kv(args)
+
+    if not kv:
+        await update.message.reply_html(t(lang, "set_usage"))
+        return
+
+    allowed = {"deposit": "deposit", "risk": "risk_pct", "lev": "lev", "margin": "margin"}
+    updated = []
+
+    for k, v in kv.items():
+        if k not in allowed:
+            await update.message.reply_html(t(lang, "set_unknown", key=k))
+            return
+        val = v if k == "margin" else float(v)
+        st.set_user_setting(uid, allowed[k], val)
+        updated.append(f"{k}={v}")
+
+    await update.message.reply_html(t(lang, "set_saved", params=", ".join(updated)))
+
+
+# ───────────────────────── /settings ─────────────────────────
+
+async def cmd_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    uid      = update.effective_user.id
+    lang     = get_lang(uid)
+    settings = st.get_user_settings(uid)
+    deposit  = settings.get("deposit")
+
+    text = t(lang, "settings_title")
+    if deposit:
+        text += t(lang, "settings_deposit", val=f"{deposit:,.0f} USDT")
+    else:
+        text += t(lang, "settings_deposit_missing")
+    text += t(lang, "settings_risk",   val=settings["risk_pct"])
+    text += t(lang, "settings_lev",    val=settings["lev"])
+    text += t(lang, "settings_margin", val=settings["margin"])
+    text += t(lang, "settings_change")
+
+    await update.message.reply_html(text)
 
 
 # ───────────────────────── /plan ─────────────────────────
@@ -132,15 +176,18 @@ async def cmd_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(t(lang, "plan_usage"))
         return
 
-    symbol = norm_sym(args[0])
-    cfg    = load_config()
-    kv     = _parse_kv(args[1:])
-    t_cfg  = cfg["trading"]
+    symbol   = norm_sym(args[0])
+    kv       = _parse_kv(args[1:])
+    settings = st.get_user_settings(uid)
 
-    deposit  = float(kv.get("deposit", t_cfg["deposit"]))
-    risk_pct = float(kv.get("risk",    t_cfg["risk_pct"]))
-    lev      = float(kv.get("lev",     t_cfg["lev"]))
-    margin   =       kv.get("margin",  t_cfg["margin"])
+    deposit = float(kv["deposit"]) if "deposit" in kv else settings.get("deposit")
+    if not deposit:
+        await update.message.reply_html(t(lang, "no_deposit"))
+        return
+
+    risk_pct = float(kv.get("risk",   settings["risk_pct"]))
+    lev      = float(kv.get("lev",    settings["lev"]))
+    margin   =       kv.get("margin", settings["margin"])
 
     status = await update.message.reply_text(t(lang, "plan_loading", symbol=symbol))
     try:
@@ -344,11 +391,13 @@ def main() -> None:
 
     app = Application.builder().token(token).build()
 
-    app.add_handler(CommandHandler("start",  cmd_start))
-    app.add_handler(CommandHandler("help",   cmd_help))
-    app.add_handler(CommandHandler("plan",   cmd_plan))
-    app.add_handler(CommandHandler("scan",   cmd_scan))
-    app.add_handler(CommandHandler("digest", cmd_digest))
+    app.add_handler(CommandHandler("start",    cmd_start))
+    app.add_handler(CommandHandler("help",     cmd_help))
+    app.add_handler(CommandHandler("plan",     cmd_plan))
+    app.add_handler(CommandHandler("scan",     cmd_scan))
+    app.add_handler(CommandHandler("digest",   cmd_digest))
+    app.add_handler(CommandHandler("set",      cmd_set))
+    app.add_handler(CommandHandler("settings", cmd_settings))
     app.add_handler(CallbackQueryHandler(handle_lang_callback, pattern=r"^lang_"))
 
     jq    = app.job_queue

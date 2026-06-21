@@ -4,10 +4,9 @@
     "chat_id": "YOUR_CHAT_ID_HERE"
   },
   "trading": {
-    "deposit": 3000,
-    "risk_pct": 1.0,
-    "lev": 20,
-    "margin": "cross"
+    "default_risk_pct": 1.0,
+    "default_lev": 10,
+    "default_margin": "cross"
   },
   "scanner": {
     "min_confidence": 0.60,

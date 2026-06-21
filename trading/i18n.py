@@ -27,9 +27,9 @@ STRINGS: dict[str, dict[str, Any]] = {
             "━━━━━━━━━━━━━━━━\n"
             "📌 <b>ПЛАНЫ</b>\n"
             "/plan BTC_USDT\n"
-            "   → план с параметрами по умолчанию\n"
-            "/plan ETH_USDT lev=10 risk=2 deposit=5000\n"
-            "   → с кастомными параметрами\n\n"
+            "   → план с твоими сохранёнными параметрами\n"
+            "/plan ETH_USDT lev=10 risk=2\n"
+            "   → переопределить параметры для одного запроса\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🔍 <b>СКАНИРОВАНИЕ</b>\n"
             "/scan — скан топ-{top_n} монет (~2–4 мин)\n"
@@ -38,11 +38,14 @@ STRINGS: dict[str, dict[str, Any]] = {
             "/digest — полный обзор рынка прямо сейчас\n"
             "   → высокая / средняя уверенность + скип\n\n"
             "━━━━━━━━━━━━━━━━\n"
-            "⚙️ <b>ПАРАМЕТРЫ</b>\n"
-            "<code>deposit</code> — депозит в USDT (сейчас: {deposit})\n"
-            "<code>risk</code>    — % риска на сделку (сейчас: {risk}%)\n"
-            "<code>lev</code>     — кредитное плечо (сейчас: {lev}x)\n"
-            "<code>margin</code>  — тип маржи: cross / isolated\n\n"
+            "⚙️ <b>ТВОИ ПАРАМЕТРЫ</b>\n"
+            "/settings — посмотреть текущие параметры\n\n"
+            "/set deposit=5000    — твой депозит (обязательно)\n"
+            "/set risk=1          — % риска на сделку (по умолч. 1%)\n"
+            "/set lev=20          — кредитное плечо (по умолч. 10x)\n"
+            "/set margin=isolated — тип маржи (по умолч. cross)\n\n"
+            "Можно сразу несколько:\n"
+            "<code>/set deposit=5000 risk=1.5 lev=15</code>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📖 <b>ЧТО ЗНАЧИТ ПЛАН</b>\n"
             "<code>entry</code>   — цена входа (лимитный ордер)\n"
@@ -60,6 +63,29 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Решение о входе в сделку всегда остаётся за тобой.\n\n"
             "🌐 Сменить язык → /start"
         ),
+        "no_deposit": (
+            "⚠️ Депозит не установлен.\n\n"
+            "Укажи свой депозит один раз:\n"
+            "<code>/set deposit=5000</code>\n\n"
+            "Бот запомнит — больше вводить не нужно."
+        ),
+        "set_usage": (
+            "Использование:\n"
+            "<code>/set deposit=5000</code>\n"
+            "<code>/set risk=1.5</code>\n"
+            "<code>/set lev=20</code>\n"
+            "<code>/set deposit=5000 risk=1 lev=20</code>"
+        ),
+        "set_saved":       "✅ Сохранено: {params}",
+        "set_unknown":     "❌ Неизвестный параметр: {key}. Доступны: deposit, risk, lev, margin",
+        "settings_title":  "⚙️ <b>Твои параметры</b>\n\n",
+        "settings_deposit":"💰 deposit: {val}\n",
+        "settings_deposit_missing": "💰 deposit: <b>⚠️ не установлен</b> → <code>/set deposit=XXXX</code>\n",
+        "settings_risk":   "🎯 risk: <b>{val}%</b>\n",
+        "settings_lev":    "🧰 lev: <b>{val}x</b>\n",
+        "settings_margin": "📐 margin: <b>{val}</b>\n\n",
+        "settings_change": "Изменить: <code>/set deposit=X risk=X lev=X</code>",
+        "deposit_not_set": "⚠️ не установлен → /set deposit=XXXX",
         "plan_loading":    "⏳ Загружаю {symbol}...",
         "plan_error":      "❌ Ошибка: {error}",
         "plan_usage":      "Использование: /plan BTC_USDT [lev=20 risk=1 deposit=3000]",
@@ -125,9 +151,9 @@ STRINGS: dict[str, dict[str, Any]] = {
             "━━━━━━━━━━━━━━━━\n"
             "📌 <b>PLANS</b>\n"
             "/plan BTC_USDT\n"
-            "   → plan with default parameters\n"
-            "/plan ETH_USDT lev=10 risk=2 deposit=5000\n"
-            "   → with custom parameters\n\n"
+            "   → plan with your saved parameters\n"
+            "/plan ETH_USDT lev=10 risk=2\n"
+            "   → override parameters for one request\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🔍 <b>SCAN</b>\n"
             "/scan — scan top-{top_n} coins (~2–4 min)\n"
@@ -136,11 +162,14 @@ STRINGS: dict[str, dict[str, Any]] = {
             "/digest — full market overview right now\n"
             "   → high / medium confidence + skipped\n\n"
             "━━━━━━━━━━━━━━━━\n"
-            "⚙️ <b>PARAMETERS</b>\n"
-            "<code>deposit</code> — deposit in USDT (now: {deposit})\n"
-            "<code>risk</code>    — % risk per trade (now: {risk}%)\n"
-            "<code>lev</code>     — leverage (now: {lev}x)\n"
-            "<code>margin</code>  — margin type: cross / isolated\n\n"
+            "⚙️ <b>YOUR PARAMETERS</b>\n"
+            "/settings — view your current parameters\n\n"
+            "/set deposit=5000    — your deposit (required)\n"
+            "/set risk=1          — % risk per trade (default 1%)\n"
+            "/set lev=20          — leverage (default 10x)\n"
+            "/set margin=isolated — margin type (default cross)\n\n"
+            "Multiple at once:\n"
+            "<code>/set deposit=5000 risk=1.5 lev=15</code>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📖 <b>WHAT THE PLAN MEANS</b>\n"
             "<code>entry</code>   — entry price (limit order)\n"
@@ -158,9 +187,32 @@ STRINGS: dict[str, dict[str, Any]] = {
             "The decision to enter a trade is always yours.\n\n"
             "🌐 Change language → /start"
         ),
+        "no_deposit": (
+            "⚠️ Deposit not set.\n\n"
+            "Set your deposit once:\n"
+            "<code>/set deposit=5000</code>\n\n"
+            "The bot will remember it — no need to enter it again."
+        ),
+        "set_usage": (
+            "Usage:\n"
+            "<code>/set deposit=5000</code>\n"
+            "<code>/set risk=1.5</code>\n"
+            "<code>/set lev=20</code>\n"
+            "<code>/set deposit=5000 risk=1 lev=20</code>"
+        ),
+        "set_saved":       "✅ Saved: {params}",
+        "set_unknown":     "❌ Unknown parameter: {key}. Allowed: deposit, risk, lev, margin",
+        "settings_title":  "⚙️ <b>Your settings</b>\n\n",
+        "settings_deposit":"💰 deposit: {val}\n",
+        "settings_deposit_missing": "💰 deposit: <b>⚠️ not set</b> → <code>/set deposit=XXXX</code>\n",
+        "settings_risk":   "🎯 risk: <b>{val}%</b>\n",
+        "settings_lev":    "🧰 lev: <b>{val}x</b>\n",
+        "settings_margin": "📐 margin: <b>{val}</b>\n\n",
+        "settings_change": "Change: <code>/set deposit=X risk=X lev=X</code>",
+        "deposit_not_set": "⚠️ not set → /set deposit=XXXX",
         "plan_loading":    "⏳ Loading {symbol}...",
         "plan_error":      "❌ Error: {error}",
-        "plan_usage":      "Usage: /plan BTC_USDT [lev=20 risk=1 deposit=3000]",
+        "plan_usage":      "Usage: /plan BTC_USDT [lev=20 risk=1]",
         "scan_starting":   "🔍 Scanning top-{top_n} coins (~2–4 min)...",
         "scan_done":       "✅ Found {count} setup(s). Top 5:",
         "scan_none":       "🧊 No setups above confidence threshold",
@@ -222,9 +274,9 @@ STRINGS: dict[str, dict[str, Any]] = {
             "━━━━━━━━━━━━━━━━\n"
             "📌 <b>PLÄNE</b>\n"
             "/plan BTC_USDT\n"
-            "   → Plan mit Standardparametern\n"
-            "/plan ETH_USDT lev=10 risk=2 deposit=5000\n"
-            "   → mit eigenen Parametern\n\n"
+            "   → Plan mit deinen gespeicherten Parametern\n"
+            "/plan ETH_USDT lev=10 risk=2\n"
+            "   → Parameter für eine Anfrage überschreiben\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🔍 <b>SCAN</b>\n"
             "/scan — Top-{top_n} Coins scannen (~2–4 Min)\n"
@@ -233,11 +285,14 @@ STRINGS: dict[str, dict[str, Any]] = {
             "/digest — vollständige Marktübersicht jetzt\n"
             "   → hohe / mittlere Konfidenz + übersprungen\n\n"
             "━━━━━━━━━━━━━━━━\n"
-            "⚙️ <b>PARAMETER</b>\n"
-            "<code>deposit</code> — Kapital in USDT (aktuell: {deposit})\n"
-            "<code>risk</code>    — Risiko-% pro Trade (aktuell: {risk}%)\n"
-            "<code>lev</code>     — Hebel (aktuell: {lev}x)\n"
-            "<code>margin</code>  — Margin-Typ: cross / isolated\n\n"
+            "⚙️ <b>DEINE PARAMETER</b>\n"
+            "/settings — aktuelle Parameter anzeigen\n\n"
+            "/set deposit=5000    — dein Kapital (erforderlich)\n"
+            "/set risk=1          — Risiko-% pro Trade (Standard 1%)\n"
+            "/set lev=20          — Hebel (Standard 10x)\n"
+            "/set margin=isolated — Margin-Typ (Standard cross)\n\n"
+            "Mehrere gleichzeitig:\n"
+            "<code>/set deposit=5000 risk=1.5 lev=15</code>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📖 <b>WAS DER PLAN BEDEUTET</b>\n"
             "<code>entry</code>   — Einstiegskurs (Limit-Order)\n"
@@ -255,9 +310,32 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Die Entscheidung zum Handeln liegt immer bei dir.\n\n"
             "🌐 Sprache ändern → /start"
         ),
+        "no_deposit": (
+            "⚠️ Kapital nicht festgelegt.\n\n"
+            "Lege dein Kapital einmalig fest:\n"
+            "<code>/set deposit=5000</code>\n\n"
+            "Der Bot merkt es sich — du musst es nicht erneut eingeben."
+        ),
+        "set_usage": (
+            "Verwendung:\n"
+            "<code>/set deposit=5000</code>\n"
+            "<code>/set risk=1.5</code>\n"
+            "<code>/set lev=20</code>\n"
+            "<code>/set deposit=5000 risk=1 lev=20</code>"
+        ),
+        "set_saved":       "✅ Gespeichert: {params}",
+        "set_unknown":     "❌ Unbekannter Parameter: {key}. Erlaubt: deposit, risk, lev, margin",
+        "settings_title":  "⚙️ <b>Deine Parameter</b>\n\n",
+        "settings_deposit":"💰 deposit: {val}\n",
+        "settings_deposit_missing": "💰 deposit: <b>⚠️ nicht festgelegt</b> → <code>/set deposit=XXXX</code>\n",
+        "settings_risk":   "🎯 risk: <b>{val}%</b>\n",
+        "settings_lev":    "🧰 lev: <b>{val}x</b>\n",
+        "settings_margin": "📐 margin: <b>{val}</b>\n\n",
+        "settings_change": "Ändern: <code>/set deposit=X risk=X lev=X</code>",
+        "deposit_not_set": "⚠️ nicht festgelegt → /set deposit=XXXX",
         "plan_loading":    "⏳ Lade {symbol}...",
         "plan_error":      "❌ Fehler: {error}",
-        "plan_usage":      "Verwendung: /plan BTC_USDT [lev=20 risk=1 deposit=3000]",
+        "plan_usage":      "Verwendung: /plan BTC_USDT [lev=20 risk=1]",
         "scan_starting":   "🔍 Scanne Top-{top_n} Coins (~2–4 Min)...",
         "scan_done":       "✅ {count} Setup(s) gefunden. Top 5:",
         "scan_none":       "🧊 Keine Setups über dem Schwellenwert",
@@ -319,9 +397,9 @@ STRINGS: dict[str, dict[str, Any]] = {
             "━━━━━━━━━━━━━━━━\n"
             "📌 <b>PLANS</b>\n"
             "/plan BTC_USDT\n"
-            "   → plan avec paramètres par défaut\n"
-            "/plan ETH_USDT lev=10 risk=2 deposit=5000\n"
-            "   → avec paramètres personnalisés\n\n"
+            "   → plan avec tes paramètres sauvegardés\n"
+            "/plan ETH_USDT lev=10 risk=2\n"
+            "   → remplacer les paramètres pour une requête\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🔍 <b>SCAN</b>\n"
             "/scan — scanner le top {top_n} (~2–4 min)\n"
@@ -330,11 +408,14 @@ STRINGS: dict[str, dict[str, Any]] = {
             "/digest — vue d'ensemble du marché maintenant\n"
             "   → haute / moyenne confiance + ignorés\n\n"
             "━━━━━━━━━━━━━━━━\n"
-            "⚙️ <b>PARAMÈTRES</b>\n"
-            "<code>deposit</code> — dépôt en USDT (actuel : {deposit})\n"
-            "<code>risk</code>    — % de risque par trade (actuel : {risk}%)\n"
-            "<code>lev</code>     — levier (actuel : {lev}x)\n"
-            "<code>margin</code>  — type de marge : cross / isolated\n\n"
+            "⚙️ <b>TES PARAMÈTRES</b>\n"
+            "/settings — voir tes paramètres actuels\n\n"
+            "/set deposit=5000    — ton dépôt (obligatoire)\n"
+            "/set risk=1          — % de risque par trade (défaut 1%)\n"
+            "/set lev=20          — levier (défaut 10x)\n"
+            "/set margin=isolated — type de marge (défaut cross)\n\n"
+            "Plusieurs à la fois :\n"
+            "<code>/set deposit=5000 risk=1.5 lev=15</code>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📖 <b>CE QUE SIGNIFIE LE PLAN</b>\n"
             "<code>entry</code>   — prix d'entrée (ordre limite)\n"
@@ -352,9 +433,32 @@ STRINGS: dict[str, dict[str, Any]] = {
             "La décision d'entrer en position reste toujours la tienne.\n\n"
             "🌐 Changer de langue → /start"
         ),
+        "no_deposit": (
+            "⚠️ Dépôt non défini.\n\n"
+            "Définis ton dépôt une seule fois :\n"
+            "<code>/set deposit=5000</code>\n\n"
+            "Le bot s'en souviendra — pas besoin de le ressaisir."
+        ),
+        "set_usage": (
+            "Utilisation :\n"
+            "<code>/set deposit=5000</code>\n"
+            "<code>/set risk=1.5</code>\n"
+            "<code>/set lev=20</code>\n"
+            "<code>/set deposit=5000 risk=1 lev=20</code>"
+        ),
+        "set_saved":       "✅ Sauvegardé : {params}",
+        "set_unknown":     "❌ Paramètre inconnu : {key}. Autorisés : deposit, risk, lev, margin",
+        "settings_title":  "⚙️ <b>Tes paramètres</b>\n\n",
+        "settings_deposit":"💰 deposit : {val}\n",
+        "settings_deposit_missing": "💰 deposit : <b>⚠️ non défini</b> → <code>/set deposit=XXXX</code>\n",
+        "settings_risk":   "🎯 risk : <b>{val}%</b>\n",
+        "settings_lev":    "🧰 lev : <b>{val}x</b>\n",
+        "settings_margin": "📐 margin : <b>{val}</b>\n\n",
+        "settings_change": "Modifier : <code>/set deposit=X risk=X lev=X</code>",
+        "deposit_not_set": "⚠️ non défini → /set deposit=XXXX",
         "plan_loading":    "⏳ Chargement de {symbol}...",
         "plan_error":      "❌ Erreur : {error}",
-        "plan_usage":      "Utilisation : /plan BTC_USDT [lev=20 risk=1 deposit=3000]",
+        "plan_usage":      "Utilisation : /plan BTC_USDT [lev=20 risk=1]",
         "scan_starting":   "🔍 Scan du top {top_n} en cours (~2–4 min)...",
         "scan_done":       "✅ {count} setup(s) trouvé(s). Top 5 :",
         "scan_none":       "🧊 Aucun setup au-dessus du seuil de confiance",
@@ -416,9 +520,9 @@ STRINGS: dict[str, dict[str, Any]] = {
             "━━━━━━━━━━━━━━━━\n"
             "📌 <b>PLANES</b>\n"
             "/plan BTC_USDT\n"
-            "   → plan con parámetros por defecto\n"
-            "/plan ETH_USDT lev=10 risk=2 deposit=5000\n"
-            "   → con parámetros personalizados\n\n"
+            "   → plan con tus parámetros guardados\n"
+            "/plan ETH_USDT lev=10 risk=2\n"
+            "   → reemplazar parámetros para una sola consulta\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🔍 <b>ESCANEO</b>\n"
             "/scan — escanear top {top_n} monedas (~2–4 min)\n"
@@ -427,11 +531,14 @@ STRINGS: dict[str, dict[str, Any]] = {
             "/digest — resumen completo del mercado ahora\n"
             "   → confianza alta / media + omitidos\n\n"
             "━━━━━━━━━━━━━━━━\n"
-            "⚙️ <b>PARÁMETROS</b>\n"
-            "<code>deposit</code> — depósito en USDT (actual: {deposit})\n"
-            "<code>risk</code>    — % de riesgo por trade (actual: {risk}%)\n"
-            "<code>lev</code>     — apalancamiento (actual: {lev}x)\n"
-            "<code>margin</code>  — tipo de margen: cross / isolated\n\n"
+            "⚙️ <b>TUS PARÁMETROS</b>\n"
+            "/settings — ver tus parámetros actuales\n\n"
+            "/set deposit=5000    — tu depósito (obligatorio)\n"
+            "/set risk=1          — % de riesgo por trade (defecto 1%)\n"
+            "/set lev=20          — apalancamiento (defecto 10x)\n"
+            "/set margin=isolated — tipo de margen (defecto cross)\n\n"
+            "Varios a la vez:\n"
+            "<code>/set deposit=5000 risk=1.5 lev=15</code>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📖 <b>QUÉ SIGNIFICA EL PLAN</b>\n"
             "<code>entry</code>   — precio de entrada (orden límite)\n"
@@ -449,9 +556,32 @@ STRINGS: dict[str, dict[str, Any]] = {
             "La decisión de entrar en una operación es siempre tuya.\n\n"
             "🌐 Cambiar idioma → /start"
         ),
+        "no_deposit": (
+            "⚠️ Depósito no establecido.\n\n"
+            "Establece tu depósito una sola vez:\n"
+            "<code>/set deposit=5000</code>\n\n"
+            "El bot lo recordará — no necesitas ingresarlo de nuevo."
+        ),
+        "set_usage": (
+            "Uso:\n"
+            "<code>/set deposit=5000</code>\n"
+            "<code>/set risk=1.5</code>\n"
+            "<code>/set lev=20</code>\n"
+            "<code>/set deposit=5000 risk=1 lev=20</code>"
+        ),
+        "set_saved":       "✅ Guardado: {params}",
+        "set_unknown":     "❌ Parámetro desconocido: {key}. Permitidos: deposit, risk, lev, margin",
+        "settings_title":  "⚙️ <b>Tus parámetros</b>\n\n",
+        "settings_deposit":"💰 deposit: {val}\n",
+        "settings_deposit_missing": "💰 deposit: <b>⚠️ no establecido</b> → <code>/set deposit=XXXX</code>\n",
+        "settings_risk":   "🎯 risk: <b>{val}%</b>\n",
+        "settings_lev":    "🧰 lev: <b>{val}x</b>\n",
+        "settings_margin": "📐 margin: <b>{val}</b>\n\n",
+        "settings_change": "Cambiar: <code>/set deposit=X risk=X lev=X</code>",
+        "deposit_not_set": "⚠️ no establecido → /set deposit=XXXX",
         "plan_loading":    "⏳ Cargando {symbol}...",
         "plan_error":      "❌ Error: {error}",
-        "plan_usage":      "Uso: /plan BTC_USDT [lev=20 risk=1 deposit=3000]",
+        "plan_usage":      "Uso: /plan BTC_USDT [lev=20 risk=1]",
         "scan_starting":   "🔍 Escaneando top {top_n} monedas (~2–4 min)...",
         "scan_done":       "✅ {count} setup(s) encontrado(s). Top 5:",
         "scan_none":       "🧊 Sin setups sobre el umbral de confianza",

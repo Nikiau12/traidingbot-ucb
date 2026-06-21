@@ -57,3 +57,17 @@ def set_user_lang(user_id: int, lang: str) -> None:
     state = _load()
     state.setdefault("user_langs", {})[str(user_id)] = lang
     _save(state)
+
+
+_USER_DEFAULTS = {"deposit": None, "risk_pct": 1.0, "lev": 10.0, "margin": "cross"}
+
+
+def get_user_settings(user_id: int) -> dict:
+    saved = _load().get("user_settings", {}).get(str(user_id), {})
+    return {**_USER_DEFAULTS, **saved}
+
+
+def set_user_setting(user_id: int, key: str, value) -> None:
+    state = _load()
+    state.setdefault("user_settings", {}).setdefault(str(user_id), {})[key] = value
+    _save(state)
