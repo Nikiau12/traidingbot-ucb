@@ -71,3 +71,13 @@ def set_user_setting(user_id: int, key: str, value) -> None:
     state = _load()
     state.setdefault("user_settings", {}).setdefault(str(user_id), {})[key] = value
     _save(state)
+
+
+def is_whop_key_used(key: str) -> bool:
+    return key in _load().get("whop_keys", {})
+
+
+def mark_whop_key_used(key: str, chat_id: str) -> None:
+    state = _load()
+    state.setdefault("whop_keys", {})[key] = {"chat_id": chat_id, "ts": time.time()}
+    _save(state)

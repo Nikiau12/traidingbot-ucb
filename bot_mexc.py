@@ -52,6 +52,10 @@ with open(os.path.join(_TRADING_DIR, "config.json")) as _f:
 SCAN_CFG  = _CFG["scanner"]
 TRADE_CFG = _CFG["trading"]
 
+# ── Whop интеграция ──
+WHOP_API_KEY = os.getenv("WHOP_API_KEY", "")
+_WHOP_VALIDATE_URL = "https://api.whop.com/api/v2/memberships/validate_license"
+
 # ── инициализация бота ──
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
 dp  = Dispatcher()
@@ -151,6 +155,20 @@ async def require_access(message: types.Message) -> bool:
         return True
     await message.reply(access_manager.format_paywall(), parse_mode="HTML")
     return False
+
+def _whop_check(license_key: str) -> dict:
+    """Синхронный запрос к Whop API — запускать через run_in_executor."""
+    import requests
+    resp = requests.post(
+        _WHOP_VALIDATE_URL,
+        json={"license_key": license_key},
+        headers={
+            "Authorization": f"Bearer {WHOP_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        timeout=10,
+    )
+    return resp.json()
 
 # ═══════════════════════════════════════════
 # КОМАНДЫ — ОБЩИЕ
@@ -271,6 +289,93 @@ async def cmd_revoke(message: types.Message):
         return
     access_manager.revoke_access(parts[1])
     await message.reply(f"✅ Доступ <code>{parts[1]}</code> отключен.", parse_mode="HTML")
+
+
+@router.message(Command("activate"))
+async def cmd_activate(message: types.Message):
+    chat_id = str(message.chat.id)
+    lang    = get_lang(message.from_user.id)
+    parts   = message.text.split()
+
+    if len(parts) < 2:
+        await message.reply(
+            "🔑 <b>Активация Whop-доступа</b>\n\n"
+            "Введи ключ из письма после покупки на Whop:\n"
+            "<code>/activate ВАШ_КЛЮЧ</code>\n\n"
+            "Ключ выглядит примерно так: <code>wxk_XXXXXXXXXXXX</code>",
+            parse_mode="HTML",
+        )
+        return
+
+    license_key = parts[1].strip()
+
+    # Проверяем не был ли ключ уже использован
+    if st.is_whop_key_used(license_key):
+        await message.reply(
+            "❌ Этот ключ уже был активирован ранее.\n\n"
+            "Если ты активировал его сам — используй /status чтобы проверить доступ.\n"
+            "Если нет — обратись к администратору.",
+            parse_mode="HTML",
+        )
+        return
+
+    if not WHOP_API_KEY:
+        await message.reply("⚠️ Whop интеграция не настроена. Обратись к администратору.")
+        return
+
+    status_msg = await message.reply("⏳ Проверяю ключ на Whop...")
+    try:
+        loop   = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, _whop_check, license_key)
+
+        membership = result.get("membership") or result.get("data") or {}
+        is_valid   = (
+            result.get("success") is True
+            or result.get("valid") is True
+            or membership.get("valid") is True
+            or membership.get("status") == "active"
+        )
+
+        if is_valid:
+            paid_until = access_manager.grant_access(chat_id, hours=8760)  # 1 год
+            st.mark_whop_key_used(license_key, chat_id)
+            await status_msg.edit_text(
+                f"✅ <b>Доступ активирован!</b>\n\n"
+                f"Ключ Whop принят. Доступ открыт до <b>{format_ts(paid_until)}</b>.\n\n"
+                f"Используй /help чтобы увидеть все команды.\n"
+                f"Сначала укажи депозит: <code>/set deposit=5000</code>",
+                parse_mode="HTML",
+            )
+            # Уведомить админа
+            for admin_id in ADMIN_CHAT_IDS:
+                try:
+                    await bot_instance.send_message(
+                        chat_id=admin_id,
+                        text=(
+                            f"✅ <b>Новая активация через Whop</b>\n\n"
+                            f"User: <code>{chat_id}</code>\n"
+                            f"Ключ: <code>{license_key}</code>"
+                        ),
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    pass
+        else:
+            error_detail = result.get("error") or result.get("message") or "ключ не найден"
+            await status_msg.edit_text(
+                f"❌ <b>Ключ не прошёл проверку</b>\n\n"
+                f"Причина: {error_detail}\n\n"
+                f"• Убедись что скопировал ключ полностью\n"
+                f"• Купить доступ: whop.com/ucb-trading-bot\n"
+                f"• Платёж TRC20: /subscribe",
+                parse_mode="HTML",
+            )
+    except Exception as e:
+        await status_msg.edit_text(
+            f"⚠️ Ошибка при проверке ключа: <code>{e}</code>\n\n"
+            "Попробуй позже или обратись к администратору.",
+            parse_mode="HTML",
+        )
 
 # ═══════════════════════════════════════════
 # КОМАНДЫ — SMC (старый функционал)
