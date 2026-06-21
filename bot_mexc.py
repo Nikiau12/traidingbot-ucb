@@ -789,7 +789,23 @@ def _rr(entry, stop, tp) -> str:
     except Exception:
         return ""
 
-def _fmt_auto_alert(plan: dict, symbol: str, side: str, conf: float) -> str:
+def _fmt_usdt(value) -> str:
+    try:
+        return f"{float(value):,.2f}".replace(",", " ")
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _fmt_auto_alert(
+    plan: dict,
+    symbol: str,
+    side: str,
+    conf: float,
+    deposit: float,
+    risk_pct: float,
+    leverage: float,
+    uses_reference_deposit: bool = False,
+) -> str:
     p       = plan.get("primary") or {}
     ctx     = plan.get("context") or {}
     tps     = p.get("tps") or []
@@ -803,6 +819,18 @@ def _fmt_auto_alert(plan: dict, symbol: str, side: str, conf: float) -> str:
     why     = p.get("why") or []
     arrow   = "↗️" if side == "LONG" else "↘️"
     badge   = "🟢 LONG" if side == "LONG" else "🔴 SHORT"
+
+    try:
+        deposit = float(deposit)
+        risk_pct = float(risk_pct)
+        leverage = max(float(leverage), 1.0)
+        stop_distance = abs(float(entry) - float(stop_p))
+        risk_usdt = deposit * risk_pct / 100
+        quantity = risk_usdt / stop_distance if stop_distance else 0
+        position_usdt = quantity * float(entry)
+        margin_usdt = position_usdt / leverage
+    except (TypeError, ValueError, ZeroDivisionError):
+        risk_usdt = position_usdt = margin_usdt = None
 
     lines = [
         "━━━━━━━━━━━━━━━━━━",
@@ -820,11 +848,22 @@ def _fmt_auto_alert(plan: dict, symbol: str, side: str, conf: float) -> str:
         f"🥅 TP1:   <code>{_fmt_price(tp1)}</code>  (+{_pct(tp1, entry)})  {_rr(entry, stop_p, tp1)}",
         f"🥅 TP2:   <code>{_fmt_price(tp2)}</code>  (+{_pct(tp2, entry)})  {_rr(entry, stop_p, tp2)}",
         "─────────────────",
+        f"💰 Депозит: <b>{_fmt_usdt(deposit)} USDT</b>",
+        f"📦 Объём позиции: <b>{_fmt_usdt(position_usdt)} USDT</b>",
+        f"🔒 Нужно маржи при x{leverage:g}: <b>{_fmt_usdt(margin_usdt)} USDT</b>",
+        f"🛡 Риск по стопу: <b>{_fmt_usdt(risk_usdt)} USDT</b> ({risk_pct:g}%)",
+        "─────────────────",
     ]
+    if uses_reference_deposit:
+        lines.extend([
+            "⚠️ <i>Расчёт на примере 1 000 USDT.</i>",
+            "Укажи свой депозит через /start для личной суммы.",
+            "",
+        ])
     if why:
         lines.append(f"🔍 <i>{' · '.join(str(w) for w in why[:3])}</i>")
         lines.append("")
-    lines.append(f"📦 Размер позиции → /plan <code>{symbol}</code>")
+    lines.append(f"📋 Подробнее → /plan <code>{symbol}</code>")
     return "\n".join(lines)
 
 
@@ -940,8 +979,30 @@ async def plan_scanner_loop():
                         if not st.should_send_alert(symbol, side, conf):
                             continue
 
-                        alert = _fmt_auto_alert(plan, symbol, side.upper(), conf)
-                        await notifier.send_message(alert)
+                        for chat_id in list(notifier.active_users):
+                            try:
+                                user_id = int(chat_id)
+                            except (TypeError, ValueError):
+                                user_id = 0
+                            settings = st.get_user_settings(user_id)
+                            saved_deposit = settings.get("deposit")
+                            try:
+                                saved_deposit = float(saved_deposit)
+                            except (TypeError, ValueError):
+                                saved_deposit = 0
+                            uses_reference = saved_deposit <= 0
+                            deposit = SCAN_REFERENCE_DEPOSIT if uses_reference else saved_deposit
+                            alert = _fmt_auto_alert(
+                                plan,
+                                symbol,
+                                side.upper(),
+                                conf,
+                                deposit=deposit,
+                                risk_pct=settings.get("risk_pct", TRADE_CFG["default_risk_pct"]),
+                                leverage=settings.get("lev", TRADE_CFG["default_lev"]),
+                                uses_reference_deposit=uses_reference,
+                            )
+                            await notifier.send_message_to_user(chat_id, alert)
                         st.mark_sent(symbol, side, conf)
                         sent += 1
                         await asyncio.sleep(0.5)

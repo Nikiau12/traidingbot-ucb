@@ -56,21 +56,31 @@ class Notifier:
             print(f"[Notifier - no active users] {text}")
             return
 
-        for chat_id in self.active_users:
-            try:
-                if gated and self.access_manager and str(chat_id) not in ADMIN_CHAT_IDS:
-                    allowed, _ = self.access_manager.consume_signal(str(chat_id))
-                    if not allowed:
-                        if self.access_manager.should_send_paywall(str(chat_id)):
-                            await self.bot.send_message(
-                                chat_id=chat_id,
-                                text=self.access_manager.format_paywall(),
-                                parse_mode="HTML",
-                            )
-                        continue
-                await self.bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
-            except Exception as e:
-                print(f"Failed to send telegram message to {chat_id}: {e}")
+        for chat_id in list(self.active_users):
+            await self.send_message_to_user(chat_id, text, gated=gated)
+
+    async def send_message_to_user(self, chat_id, text: str, gated: bool = True) -> bool:
+        """Send one personalized alert while preserving trial/paywall checks."""
+        if not self.bot:
+            print(f"[Notifier - console only, {chat_id}] {text}")
+            return False
+
+        try:
+            if gated and self.access_manager and str(chat_id) not in ADMIN_CHAT_IDS:
+                allowed, _ = self.access_manager.consume_signal(str(chat_id))
+                if not allowed:
+                    if self.access_manager.should_send_paywall(str(chat_id)):
+                        await self.bot.send_message(
+                            chat_id=chat_id,
+                            text=self.access_manager.format_paywall(),
+                            parse_mode="HTML",
+                        )
+                    return False
+            await self.bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
+            return True
+        except Exception as e:
+            print(f"Failed to send telegram message to {chat_id}: {e}")
+            return False
 
     async def close(self):
         pass # The bot session will be closed by the main aiogram loop
