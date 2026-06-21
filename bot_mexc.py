@@ -699,6 +699,78 @@ last_spike_alert: dict = {}
 last_setup_alert: dict = {}
 _last_plan_4h_block: int = -1
 
+# Токены которые не нужно торговать — стоковые и левериджные
+_JUNK_SUFFIXES = ("STOCK", "BULL", "BEAR", "ETF", "UP", "DOWN", "3L", "3S")
+
+def _is_junk_symbol(symbol: str) -> bool:
+    base = symbol.replace("_USDT", "").upper()
+    return any(base.endswith(s) for s in _JUNK_SUFFIXES)
+
+def _fmt_price(p) -> str:
+    if p is None or p == "?":
+        return "?"
+    try:
+        p = float(p)
+        if p >= 10000: return f"{p:,.0f}"
+        if p >= 1000:  return f"{p:,.1f}"
+        if p >= 10:    return f"{p:.2f}"
+        if p >= 1:     return f"{p:.4f}"
+        return f"{p:.6f}"
+    except Exception:
+        return str(p)
+
+def _pct(a, b) -> str:
+    try:
+        return f"{abs(float(a) - float(b)) / float(b) * 100:.1f}%"
+    except Exception:
+        return ""
+
+def _rr(entry, stop, tp) -> str:
+    try:
+        risk   = abs(float(entry) - float(stop))
+        reward = abs(float(tp)    - float(entry))
+        return f"RR {reward / risk:.1f}x" if risk else ""
+    except Exception:
+        return ""
+
+def _fmt_auto_alert(plan: dict, symbol: str, side: str, conf: float) -> str:
+    p       = plan.get("primary") or {}
+    ctx     = plan.get("context") or {}
+    tps     = p.get("tps") or []
+    entry   = p.get("entry")
+    stop_p  = p.get("stop")
+    tp1     = tps[0]["price"] if tps else None
+    tp2     = tps[1]["price"] if len(tps) > 1 else None
+    price   = plan.get("price")
+    regime  = str(ctx.get("regime", "")).upper() or "—"
+    trend1d = str(ctx.get("trend_1d", "")).upper() or "—"
+    why     = p.get("why") or []
+    arrow   = "↗️" if side == "LONG" else "↘️"
+    badge   = "🟢 LONG" if side == "LONG" else "🔴 SHORT"
+
+    lines = [
+        "━━━━━━━━━━━━━━━━━━",
+        f"📊 <b>СИГНАЛ — {badge}</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        "",
+        f"🪙 <b><code>{symbol}</code></b>",
+        f"💵 Цена сейчас: <code>{_fmt_price(price)}</code>",
+        f"🧭 Режим: <b>{regime}</b>  |  Тренд 1D: <b>{trend1d}</b>",
+        f"⭐️ Уверенность: <b>{conf:.2f}</b> / 1.0",
+        "",
+        "─────────────────",
+        f"{arrow} Вход:   <code>{_fmt_price(entry)}</code>",
+        f"🛑 Стоп:  <code>{_fmt_price(stop_p)}</code>  ({_pct(stop_p, entry)} от входа)",
+        f"🥅 TP1:   <code>{_fmt_price(tp1)}</code>  (+{_pct(tp1, entry)})  {_rr(entry, stop_p, tp1)}",
+        f"🥅 TP2:   <code>{_fmt_price(tp2)}</code>  (+{_pct(tp2, entry)})  {_rr(entry, stop_p, tp2)}",
+        "─────────────────",
+    ]
+    if why:
+        lines.append(f"🔍 <i>{' · '.join(str(w) for w in why[:3])}</i>")
+        lines.append("")
+    lines.append(f"📦 Размер позиции → /plan <code>{symbol}</code>")
+    return "\n".join(lines)
+
 
 async def market_scanner_loop():
     """Реалтайм сканер: спайки (15m) + SMC сетапы (4h/1d)."""
@@ -799,28 +871,18 @@ async def plan_scanner_loop():
                     )
                     sent = 0
                     for plan in results:
-                        conf = _conf(plan)
-                        if conf < SCAN_CFG["min_confidence"] or plan.get("side") == "skip":
-                            continue
+                        conf   = _conf(plan)
                         symbol = plan.get("symbol", "")
                         side   = (plan.get("primary") or {}).get("side", "skip")
+
+                        if conf < SCAN_CFG["min_confidence"] or plan.get("side") == "skip":
+                            continue
+                        if _is_junk_symbol(symbol):
+                            continue
                         if not st.should_send_alert(symbol, side, conf):
                             continue
-                        # Автоалёрт — краткий формат без размера позиции
-                        p = plan.get("primary") or {}
-                        tps = p.get("tps") or []
-                        tp1 = tps[0]["price"] if tps else None
-                        tp2 = tps[1]["price"] if len(tps) > 1 else None
-                        em  = "🟩" if side == "LONG" else "🟥"
-                        alert = (
-                            f"📡 <b>AUTO SIGNAL</b> {em}\n"
-                            f"<b><code>{symbol}</code></b> — {side.upper()} (conf {conf:.2f})\n\n"
-                            f"🎯 Entry: <code>{p.get('entry','?')}</code>\n"
-                            f"🛑 Stop:  <code>{p.get('stop','?')}</code>\n"
-                            f"🥅 TP1:   <code>{tp1 or '?'}</code>\n"
-                            f"🥅 TP2:   <code>{tp2 or '?'}</code>\n\n"
-                            f"Полный план с размером позиции → /plan {symbol}"
-                        )
+
+                        alert = _fmt_auto_alert(plan, symbol, side.upper(), conf)
                         await notifier.send_message(alert)
                         st.mark_sent(symbol, side, conf)
                         sent += 1
