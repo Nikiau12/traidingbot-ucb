@@ -22,6 +22,18 @@ STRINGS: dict[str, dict[str, Any]] = {
         ),
         "lang_set": "✅ Язык установлен: <b>Русский</b>\n\nПечатай /help — покажу все команды.",
         "choose_lang": "🌐 Выбери язык:",
+        "deposit_button": "💰 Указать депозит",
+        "deposit_start_hint": (
+            "Укажи депозит сейчас, чтобы бот рассчитывал размер позиции и риск именно для тебя. "
+            "Сканирование работает и без депозита — тогда расчёт будет показан на примере 1 000 USDT."
+        ),
+        "deposit_prompt": "💰 Отправь сумму депозита одним числом, например: <code>5000</code>",
+        "deposit_saved": "✅ Депозит сохранён: <b>{deposit} USDT</b>\n\nТеперь можешь использовать /scan или /plan BTC_USDT.",
+        "deposit_invalid": "❌ Отправь положительное число, например: <code>5000</code>",
+        "scan_reference_deposit": (
+            "ℹ️ Депозит пока не указан. /scan всё равно запустится, но размеры позиции будут "
+            "рассчитаны на примере <b>{deposit} USDT</b>."
+        ),
         "help": (
             "📋 <b>UCB_TRADING_BOT — Справочник</b>\n\n"
             "━━━━━━━━━━━━━━━━\n"
@@ -40,7 +52,7 @@ STRINGS: dict[str, dict[str, Any]] = {
             "━━━━━━━━━━━━━━━━\n"
             "⚙️ <b>ТВОИ ПАРАМЕТРЫ</b>\n"
             "/settings — посмотреть текущие параметры\n\n"
-            "/set deposit=5000    — твой депозит (обязательно)\n"
+            "/set deposit=5000    — твой депозит для расчёта позиции\n"
             "/set risk=1          — % риска на сделку (по умолч. 1%)\n"
             "/set lev=20          — кредитное плечо (по умолч. 10x)\n"
             "/set margin=isolated — тип маржи (по умолч. cross)\n\n"
@@ -148,6 +160,18 @@ STRINGS: dict[str, dict[str, Any]] = {
         ),
         "lang_set": "✅ Language set: <b>English</b>\n\nType /help to see all commands.",
         "choose_lang": "🌐 Choose your language:",
+        "deposit_button": "💰 Set deposit",
+        "deposit_start_hint": (
+            "Set your deposit now so position size and risk are calculated for you. "
+            "Scanning also works without it, using a 1,000 USDT reference deposit."
+        ),
+        "deposit_prompt": "💰 Send your deposit as a number, for example: <code>5000</code>",
+        "deposit_saved": "✅ Deposit saved: <b>{deposit} USDT</b>\n\nYou can now use /scan or /plan BTC_USDT.",
+        "deposit_invalid": "❌ Send a positive number, for example: <code>5000</code>",
+        "scan_reference_deposit": (
+            "ℹ️ Your deposit is not set yet. /scan will still run, but position sizes will be "
+            "calculated using a <b>{deposit} USDT</b> reference deposit."
+        ),
         "help": (
             "📋 <b>UCB_TRADING_BOT — Commands</b>\n\n"
             "━━━━━━━━━━━━━━━━\n"
@@ -166,7 +190,7 @@ STRINGS: dict[str, dict[str, Any]] = {
             "━━━━━━━━━━━━━━━━\n"
             "⚙️ <b>YOUR PARAMETERS</b>\n"
             "/settings — view your current parameters\n\n"
-            "/set deposit=5000    — your deposit (required)\n"
+            "/set deposit=5000    — your deposit for position sizing\n"
             "/set risk=1          — % risk per trade (default 1%)\n"
             "/set lev=20          — leverage (default 10x)\n"
             "/set margin=isolated — margin type (default cross)\n\n"
@@ -273,6 +297,18 @@ STRINGS: dict[str, dict[str, Any]] = {
         ),
         "lang_set": "✅ Sprache gesetzt: <b>Deutsch</b>\n\nTippe /help für alle Befehle.",
         "choose_lang": "🌐 Wähle deine Sprache:",
+        "deposit_button": "💰 Kapital festlegen",
+        "deposit_start_hint": (
+            "Lege dein Kapital jetzt fest, damit Positionsgröße und Risiko für dich berechnet werden. "
+            "Der Scan funktioniert auch ohne Angabe mit einem Referenzwert von 1.000 USDT."
+        ),
+        "deposit_prompt": "💰 Sende dein Kapital als Zahl, zum Beispiel: <code>5000</code>",
+        "deposit_saved": "✅ Kapital gespeichert: <b>{deposit} USDT</b>\n\nDu kannst jetzt /scan oder /plan BTC_USDT nutzen.",
+        "deposit_invalid": "❌ Sende eine positive Zahl, zum Beispiel: <code>5000</code>",
+        "scan_reference_deposit": (
+            "ℹ️ Dein Kapital ist noch nicht festgelegt. /scan läuft trotzdem; Positionsgrößen werden "
+            "mit einem Referenzwert von <b>{deposit} USDT</b> berechnet."
+        ),
         "help": (
             "📋 <b>UCB_TRADING_BOT — Befehle</b>\n\n"
             "━━━━━━━━━━━━━━━━\n"
@@ -291,7 +327,7 @@ STRINGS: dict[str, dict[str, Any]] = {
             "━━━━━━━━━━━━━━━━\n"
             "⚙️ <b>DEINE PARAMETER</b>\n"
             "/settings — aktuelle Parameter anzeigen\n\n"
-            "/set deposit=5000    — dein Kapital (erforderlich)\n"
+            "/set deposit=5000    — dein Kapital für die Positionsgröße\n"
             "/set risk=1          — Risiko-% pro Trade (Standard 1%)\n"
             "/set lev=20          — Hebel (Standard 10x)\n"
             "/set margin=isolated — Margin-Typ (Standard cross)\n\n"
@@ -398,6 +434,18 @@ STRINGS: dict[str, dict[str, Any]] = {
         ),
         "lang_set": "✅ Langue définie : <b>Français</b>\n\nTape /help pour voir toutes les commandes.",
         "choose_lang": "🌐 Choisis ta langue :",
+        "deposit_button": "💰 Définir le dépôt",
+        "deposit_start_hint": (
+            "Indique ton dépôt pour calculer la taille de position et le risque selon ton capital. "
+            "Le scan fonctionne aussi sans dépôt avec une référence de 1 000 USDT."
+        ),
+        "deposit_prompt": "💰 Envoie ton dépôt sous forme de nombre, par exemple : <code>5000</code>",
+        "deposit_saved": "✅ Dépôt enregistré : <b>{deposit} USDT</b>\n\nTu peux maintenant utiliser /scan ou /plan BTC_USDT.",
+        "deposit_invalid": "❌ Envoie un nombre positif, par exemple : <code>5000</code>",
+        "scan_reference_deposit": (
+            "ℹ️ Ton dépôt n'est pas encore défini. /scan fonctionnera quand même, mais les tailles "
+            "seront calculées avec une référence de <b>{deposit} USDT</b>."
+        ),
         "help": (
             "📋 <b>UCB_TRADING_BOT — Commandes</b>\n\n"
             "━━━━━━━━━━━━━━━━\n"
@@ -416,7 +464,7 @@ STRINGS: dict[str, dict[str, Any]] = {
             "━━━━━━━━━━━━━━━━\n"
             "⚙️ <b>TES PARAMÈTRES</b>\n"
             "/settings — voir tes paramètres actuels\n\n"
-            "/set deposit=5000    — ton dépôt (obligatoire)\n"
+            "/set deposit=5000    — ton dépôt pour calculer la position\n"
             "/set risk=1          — % de risque par trade (défaut 1%)\n"
             "/set lev=20          — levier (défaut 10x)\n"
             "/set margin=isolated — type de marge (défaut cross)\n\n"
@@ -523,6 +571,18 @@ STRINGS: dict[str, dict[str, Any]] = {
         ),
         "lang_set": "✅ Idioma establecido: <b>Español</b>\n\nEscribe /help para ver todos los comandos.",
         "choose_lang": "🌐 Elige tu idioma:",
+        "deposit_button": "💰 Indicar depósito",
+        "deposit_start_hint": (
+            "Indica tu depósito para calcular el tamaño de posición y el riesgo según tu capital. "
+            "El escaneo también funciona sin depósito usando una referencia de 1.000 USDT."
+        ),
+        "deposit_prompt": "💰 Envía tu depósito como un número, por ejemplo: <code>5000</code>",
+        "deposit_saved": "✅ Depósito guardado: <b>{deposit} USDT</b>\n\nYa puedes usar /scan o /plan BTC_USDT.",
+        "deposit_invalid": "❌ Envía un número positivo, por ejemplo: <code>5000</code>",
+        "scan_reference_deposit": (
+            "ℹ️ Tu depósito aún no está configurado. /scan funcionará igualmente, pero los tamaños "
+            "se calcularán usando una referencia de <b>{deposit} USDT</b>."
+        ),
         "help": (
             "📋 <b>UCB_TRADING_BOT — Comandos</b>\n\n"
             "━━━━━━━━━━━━━━━━\n"
@@ -541,7 +601,7 @@ STRINGS: dict[str, dict[str, Any]] = {
             "━━━━━━━━━━━━━━━━\n"
             "⚙️ <b>TUS PARÁMETROS</b>\n"
             "/settings — ver tus parámetros actuales\n\n"
-            "/set deposit=5000    — tu depósito (obligatorio)\n"
+            "/set deposit=5000    — tu depósito para calcular la posición\n"
             "/set risk=1          — % de riesgo por trade (defecto 1%)\n"
             "/set lev=20          — apalancamiento (defecto 10x)\n"
             "/set margin=isolated — tipo de margen (defecto cross)\n\n"

@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 
 from aiogram import Bot, Dispatcher, types, Router, F
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # ── старые модули ──
@@ -63,6 +65,11 @@ router = Router()
 
 SPIKE_COOLDOWN = 4 * 3600
 SETUP_COOLDOWN = 8 * 3600
+SCAN_REFERENCE_DEPOSIT = 1000.0
+
+
+class DepositSetup(StatesGroup):
+    waiting_for_amount = State()
 
 # ═══════════════════════════════════════════
 # ПОЛЬЗОВАТЕЛИ
@@ -123,9 +130,19 @@ def format_ts(ts: int) -> str:
 def get_lang(user_id: int) -> str:
     return st.get_user_lang(user_id)
 
-def _lang_keyboard() -> InlineKeyboardMarkup:
+def _lang_keyboard(lang: str = "en") -> InlineKeyboardMarkup:
     btns = [InlineKeyboardButton(text=lbl, callback_data=cb) for lbl, cb in LANG_BUTTONS]
-    return InlineKeyboardMarkup(inline_keyboard=[btns[:3], btns[3:]])
+    return InlineKeyboardMarkup(inline_keyboard=[
+        btns[:3],
+        btns[3:],
+        [InlineKeyboardButton(text=_t(lang, "deposit_button"), callback_data="set_deposit")],
+    ])
+
+
+def _deposit_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=_t(lang, "deposit_button"), callback_data="set_deposit")
+    ]])
 
 def _parse_kv(parts):
     kv = {}
@@ -183,15 +200,49 @@ async def cmd_start(message: types.Message):
     if is_new:
         print(f"Новый пользователь: {chat_id}")
     lang = get_lang(message.from_user.id)
-    await message.reply(_t(lang, "welcome"), parse_mode="HTML", reply_markup=_lang_keyboard())
+    await message.reply(_t(lang, "welcome"), parse_mode="HTML", reply_markup=_lang_keyboard(lang))
 
 
 @router.callback_query(lambda c: c.data.startswith("lang_"))
 async def handle_lang_callback(callback: types.CallbackQuery):
     lang = callback.data.split("_")[1]
     st.set_user_lang(callback.from_user.id, lang)
-    await callback.message.edit_text(_t(lang, "lang_set"), parse_mode="HTML")
+    settings = st.get_user_settings(callback.from_user.id)
+    text = _t(lang, "lang_set")
+    reply_markup = None
+    if not settings.get("deposit"):
+        text += "\n\n" + _t(lang, "deposit_start_hint")
+        reply_markup = _deposit_keyboard(lang)
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=reply_markup)
     await callback.answer()
+
+
+@router.callback_query(F.data == "set_deposit")
+async def handle_deposit_callback(callback: types.CallbackQuery, state: FSMContext):
+    lang = get_lang(callback.from_user.id)
+    await state.set_state(DepositSetup.waiting_for_amount)
+    await callback.message.reply(_t(lang, "deposit_prompt"), parse_mode="HTML")
+    await callback.answer()
+
+
+@router.message(DepositSetup.waiting_for_amount)
+async def handle_deposit_amount(message: types.Message, state: FSMContext):
+    lang = get_lang(message.from_user.id)
+    raw = (message.text or "").strip().replace(" ", "").replace(",", ".")
+    try:
+        deposit = float(raw)
+        if deposit <= 0 or deposit > 1_000_000_000:
+            raise ValueError
+    except ValueError:
+        await message.reply(_t(lang, "deposit_invalid"), parse_mode="HTML")
+        return
+
+    st.set_user_setting(message.from_user.id, "deposit", deposit)
+    await state.clear()
+    await message.reply(
+        _t(lang, "deposit_saved", deposit=f"{deposit:,.2f}"),
+        parse_mode="HTML",
+    )
 
 
 @router.message(Command("help"))
@@ -475,9 +526,14 @@ async def cmd_scan(message: types.Message):
     uid      = message.from_user.id
     lang     = get_lang(uid)
     settings = st.get_user_settings(uid)
+    deposit = settings.get("deposit") or SCAN_REFERENCE_DEPOSIT
+
     if not settings.get("deposit"):
-        await message.reply(_t(lang, "no_deposit"), parse_mode="HTML")
-        return
+        await message.reply(
+            _t(lang, "scan_reference_deposit", deposit=f"{SCAN_REFERENCE_DEPOSIT:,.0f}"),
+            parse_mode="HTML",
+            reply_markup=_deposit_keyboard(lang),
+        )
 
     status_msg = await message.reply(
         _t(lang, "scan_starting", top_n=SCAN_CFG["top_n_symbols"]), parse_mode="HTML"
@@ -489,7 +545,7 @@ async def cmd_scan(message: types.Message):
             None,
             lambda: sc.scan_all(
                 symbols,
-                deposit=settings["deposit"],
+                deposit=deposit,
                 risk_pct=settings["risk_pct"],
                 lev=settings["lev"],
                 margin=settings["margin"],
@@ -502,7 +558,7 @@ async def cmd_scan(message: types.Message):
             return
         await status_msg.edit_text(_t(lang, "scan_done", count=len(actionable)), parse_mode="HTML")
         for plan in actionable[:5]:
-            text = render_telegram_plan(plan, deposit=settings["deposit"], risk_pct=settings["risk_pct"], lang=lang)
+            text = render_telegram_plan(plan, deposit=deposit, risk_pct=settings["risk_pct"], lang=lang)
             await message.reply(text, parse_mode="HTML")
             await asyncio.sleep(0.4)
         if len(actionable) > 5:
