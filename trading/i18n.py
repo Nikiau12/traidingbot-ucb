@@ -28,7 +28,10 @@ STRINGS: dict[str, dict[str, Any]] = {
             "До этого планы, сканирование и автоматические сигналы недоступны."
         ),
         "deposit_prompt": "💰 Отправь сумму депозита одним числом, например: <code>5000</code>",
-        "deposit_saved": "✅ Депозит сохранён: <b>{deposit} USDT</b>\n\nТеперь можешь использовать /scan или /plan BTC_USDT.",
+        "deposit_saved": (
+            "✅ Депозит сохранён: <b>{deposit} USDT</b>\n\n"
+            "Нажми /plan для плана по BTC или отправь /plan ETH_USDT для другой монеты."
+        ),
         "deposit_invalid": "❌ Отправь положительное число, например: <code>5000</code>",
         "scan_reference_deposit": (
             "ℹ️ Депозит пока не указан. /scan всё равно запустится, но размеры позиции будут "
@@ -38,6 +41,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "📋 <b>UCB_TRADING_BOT — Справочник</b>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📌 <b>ПЛАНЫ</b>\n"
+            "/plan\n"
+            "   → план по BTC с сохранённым депозитом\n"
             "/plan BTC_USDT\n"
             "   → план с твоими сохранёнными параметрами\n"
             "/plan ETH_USDT lev=10 risk=2\n"
@@ -102,7 +107,13 @@ STRINGS: dict[str, dict[str, Any]] = {
         "deposit_not_set": "⚠️ не установлен → /set deposit=XXXX",
         "plan_loading":    "⏳ Загружаю {symbol}...",
         "plan_error":      "❌ Ошибка: {error}",
-        "plan_usage":      "Использование: /plan BTC_USDT [lev=20 risk=1 deposit=3000]",
+        "plan_usage": (
+            "Использование:\n"
+            "<code>/plan</code> — BTC\n"
+            "<code>/plan ETH_USDT</code> — другая монета\n"
+            "<code>/plan ETH_USDT lev=20 risk=1</code> — разовые настройки\n\n"
+            "Депозит берётся из сохранённых настроек. Изменить: <code>/set deposit=5000</code>"
+        ),
         "scan_starting":   "🔍 Сканирую топ-{top_n} монет (~2–4 мин)...",
         "scan_done":       "✅ Найдено {count} сетап(ов). Топ-5:",
         "scan_none":       "🧊 Нет сетапов выше порога уверенности",
@@ -166,7 +177,10 @@ STRINGS: dict[str, dict[str, Any]] = {
             "The deposit is required before plans, scans and automatic signals are available."
         ),
         "deposit_prompt": "💰 Send your deposit as a number, for example: <code>5000</code>",
-        "deposit_saved": "✅ Deposit saved: <b>{deposit} USDT</b>\n\nYou can now use /scan or /plan BTC_USDT.",
+        "deposit_saved": (
+            "✅ Deposit saved: <b>{deposit} USDT</b>\n\n"
+            "Tap /plan for a BTC plan or send /plan ETH_USDT for another coin."
+        ),
         "deposit_invalid": "❌ Send a positive number, for example: <code>5000</code>",
         "scan_reference_deposit": (
             "ℹ️ Your deposit is not set yet. /scan will still run, but position sizes will be "
@@ -176,6 +190,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "📋 <b>UCB_TRADING_BOT — Commands</b>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📌 <b>PLANS</b>\n"
+            "/plan\n"
+            "   → BTC plan using your saved deposit\n"
             "/plan BTC_USDT\n"
             "   → plan with your saved parameters\n"
             "/plan ETH_USDT lev=10 risk=2\n"
@@ -240,7 +256,13 @@ STRINGS: dict[str, dict[str, Any]] = {
         "deposit_not_set": "⚠️ not set → /set deposit=XXXX",
         "plan_loading":    "⏳ Loading {symbol}...",
         "plan_error":      "❌ Error: {error}",
-        "plan_usage":      "Usage: /plan BTC_USDT [lev=20 risk=1]",
+        "plan_usage": (
+            "Usage:\n"
+            "<code>/plan</code> — BTC\n"
+            "<code>/plan ETH_USDT</code> — another coin\n"
+            "<code>/plan ETH_USDT lev=20 risk=1</code> — one-time settings\n\n"
+            "Your saved deposit is always used. Change it with <code>/set deposit=5000</code>."
+        ),
         "scan_starting":   "🔍 Scanning top-{top_n} coins (~2–4 min)...",
         "scan_done":       "✅ Found {count} setup(s). Top 5:",
         "scan_none":       "🧊 No setups above confidence threshold",
@@ -303,7 +325,10 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Pläne, Scans und automatische Signale sind erst danach verfügbar."
         ),
         "deposit_prompt": "💰 Sende dein Kapital als Zahl, zum Beispiel: <code>5000</code>",
-        "deposit_saved": "✅ Kapital gespeichert: <b>{deposit} USDT</b>\n\nDu kannst jetzt /scan oder /plan BTC_USDT nutzen.",
+        "deposit_saved": (
+            "✅ Kapital gespeichert: <b>{deposit} USDT</b>\n\n"
+            "Tippe /plan für BTC oder sende /plan ETH_USDT für einen anderen Coin."
+        ),
         "deposit_invalid": "❌ Sende eine positive Zahl, zum Beispiel: <code>5000</code>",
         "scan_reference_deposit": (
             "ℹ️ Dein Kapital ist noch nicht festgelegt. /scan läuft trotzdem; Positionsgrößen werden "
@@ -313,6 +338,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "📋 <b>UCB_TRADING_BOT — Befehle</b>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📌 <b>PLÄNE</b>\n"
+            "/plan\n"
+            "   → BTC-Plan mit deinem gespeicherten Kapital\n"
             "/plan BTC_USDT\n"
             "   → Plan mit deinen gespeicherten Parametern\n"
             "/plan ETH_USDT lev=10 risk=2\n"
@@ -377,7 +404,13 @@ STRINGS: dict[str, dict[str, Any]] = {
         "deposit_not_set": "⚠️ nicht festgelegt → /set deposit=XXXX",
         "plan_loading":    "⏳ Lade {symbol}...",
         "plan_error":      "❌ Fehler: {error}",
-        "plan_usage":      "Verwendung: /plan BTC_USDT [lev=20 risk=1]",
+        "plan_usage": (
+            "Verwendung:\n"
+            "<code>/plan</code> — BTC\n"
+            "<code>/plan ETH_USDT</code> — anderer Coin\n"
+            "<code>/plan ETH_USDT lev=20 risk=1</code> — einmalige Einstellungen\n\n"
+            "Das gespeicherte Kapital wird immer verwendet. Ändern: <code>/set deposit=5000</code>"
+        ),
         "scan_starting":   "🔍 Scanne Top-{top_n} Coins (~2–4 Min)...",
         "scan_done":       "✅ {count} Setup(s) gefunden. Top 5:",
         "scan_none":       "🧊 Keine Setups über dem Schwellenwert",
@@ -440,7 +473,10 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Les plans, scans et signaux automatiques seront disponibles ensuite."
         ),
         "deposit_prompt": "💰 Envoie ton dépôt sous forme de nombre, par exemple : <code>5000</code>",
-        "deposit_saved": "✅ Dépôt enregistré : <b>{deposit} USDT</b>\n\nTu peux maintenant utiliser /scan ou /plan BTC_USDT.",
+        "deposit_saved": (
+            "✅ Dépôt enregistré : <b>{deposit} USDT</b>\n\n"
+            "Appuie sur /plan pour BTC ou envoie /plan ETH_USDT pour une autre monnaie."
+        ),
         "deposit_invalid": "❌ Envoie un nombre positif, par exemple : <code>5000</code>",
         "scan_reference_deposit": (
             "ℹ️ Ton dépôt n'est pas encore défini. /scan fonctionnera quand même, mais les tailles "
@@ -450,6 +486,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "📋 <b>UCB_TRADING_BOT — Commandes</b>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📌 <b>PLANS</b>\n"
+            "/plan\n"
+            "   → plan BTC avec ton dépôt enregistré\n"
             "/plan BTC_USDT\n"
             "   → plan avec tes paramètres sauvegardés\n"
             "/plan ETH_USDT lev=10 risk=2\n"
@@ -514,7 +552,13 @@ STRINGS: dict[str, dict[str, Any]] = {
         "deposit_not_set": "⚠️ non défini → /set deposit=XXXX",
         "plan_loading":    "⏳ Chargement de {symbol}...",
         "plan_error":      "❌ Erreur : {error}",
-        "plan_usage":      "Utilisation : /plan BTC_USDT [lev=20 risk=1]",
+        "plan_usage": (
+            "Utilisation :\n"
+            "<code>/plan</code> — BTC\n"
+            "<code>/plan ETH_USDT</code> — autre monnaie\n"
+            "<code>/plan ETH_USDT lev=20 risk=1</code> — réglages temporaires\n\n"
+            "Le dépôt enregistré est toujours utilisé. Modifier : <code>/set deposit=5000</code>"
+        ),
         "scan_starting":   "🔍 Scan du top {top_n} en cours (~2–4 min)...",
         "scan_done":       "✅ {count} setup(s) trouvé(s). Top 5 :",
         "scan_none":       "🧊 Aucun setup au-dessus du seuil de confiance",
@@ -577,7 +621,10 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Los planes, escaneos y señales automáticas estarán disponibles después."
         ),
         "deposit_prompt": "💰 Envía tu depósito como un número, por ejemplo: <code>5000</code>",
-        "deposit_saved": "✅ Depósito guardado: <b>{deposit} USDT</b>\n\nYa puedes usar /scan o /plan BTC_USDT.",
+        "deposit_saved": (
+            "✅ Depósito guardado: <b>{deposit} USDT</b>\n\n"
+            "Pulsa /plan para BTC o envía /plan ETH_USDT para otra moneda."
+        ),
         "deposit_invalid": "❌ Envía un número positivo, por ejemplo: <code>5000</code>",
         "scan_reference_deposit": (
             "ℹ️ Tu depósito aún no está configurado. /scan funcionará igualmente, pero los tamaños "
@@ -587,6 +634,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "📋 <b>UCB_TRADING_BOT — Comandos</b>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📌 <b>PLANES</b>\n"
+            "/plan\n"
+            "   → plan de BTC con tu depósito guardado\n"
             "/plan BTC_USDT\n"
             "   → plan con tus parámetros guardados\n"
             "/plan ETH_USDT lev=10 risk=2\n"
@@ -651,7 +700,13 @@ STRINGS: dict[str, dict[str, Any]] = {
         "deposit_not_set": "⚠️ no establecido → /set deposit=XXXX",
         "plan_loading":    "⏳ Cargando {symbol}...",
         "plan_error":      "❌ Error: {error}",
-        "plan_usage":      "Uso: /plan BTC_USDT [lev=20 risk=1]",
+        "plan_usage": (
+            "Uso:\n"
+            "<code>/plan</code> — BTC\n"
+            "<code>/plan ETH_USDT</code> — otra moneda\n"
+            "<code>/plan ETH_USDT lev=20 risk=1</code> — ajustes temporales\n\n"
+            "Siempre se usa el depósito guardado. Cámbialo con <code>/set deposit=5000</code>."
+        ),
         "scan_starting":   "🔍 Escaneando top {top_n} monedas (~2–4 min)...",
         "scan_done":       "✅ {count} setup(s) encontrado(s). Top 5:",
         "scan_none":       "🧊 Sin setups sobre el umbral de confianza",

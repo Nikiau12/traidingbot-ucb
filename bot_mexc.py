@@ -183,6 +183,30 @@ def norm_sym(s: str) -> str:
         s = s[:-4] + "_USDT"
     return s
 
+
+def _parse_plan_request(text: str, settings: dict):
+    parts = (text or "").split()[1:]
+    if not parts:
+        symbol = "BTC_USDT"
+        kv = {}
+    elif "=" in parts[0]:
+        symbol = "BTC_USDT"
+        kv = _parse_kv(parts)
+    else:
+        symbol = norm_sym(parts[0])
+        kv = _parse_kv(parts[1:])
+
+    if set(kv) - {"risk", "lev", "margin"}:
+        raise ValueError("unsupported plan parameter")
+
+    deposit = float(settings["deposit"])
+    risk_pct = float(kv.get("risk", settings["risk_pct"]))
+    lev = float(kv.get("lev", settings["lev"]))
+    margin = kv.get("margin", settings["margin"])
+    if deposit <= 0 or risk_pct <= 0 or lev <= 0 or margin not in {"cross", "isolated"}:
+        raise ValueError("invalid plan parameter")
+    return symbol, deposit, risk_pct, lev, margin
+
 async def require_access(message: types.Message) -> bool:
     chat_id = str(message.chat.id)
     if is_admin(chat_id):
@@ -502,23 +526,17 @@ async def cmd_spikes(message: types.Message):
 async def cmd_plan(message: types.Message):
     if not await require_deposit(message):
         return
-    if not await require_access(message):
-        return
     uid  = message.from_user.id
     lang = get_lang(uid)
-    parts = message.text.split()[1:]
-    if not parts:
+    settings = st.get_user_settings(uid)
+    try:
+        symbol, deposit, risk_pct, lev, margin = _parse_plan_request(message.text, settings)
+    except (TypeError, ValueError):
         await message.reply(_t(lang, "plan_usage"), parse_mode="HTML")
         return
 
-    symbol   = norm_sym(parts[0])
-    kv       = _parse_kv(parts[1:])
-    settings = st.get_user_settings(uid)
-    deposit  = float(kv["deposit"]) if "deposit" in kv else settings.get("deposit")
-
-    risk_pct = float(kv.get("risk",   settings["risk_pct"]))
-    lev      = float(kv.get("lev",    settings["lev"]))
-    margin   =       kv.get("margin", settings["margin"])
+    if not await require_access(message):
+        return
 
     status_msg = await message.reply(_t(lang, "plan_loading", symbol=symbol), parse_mode="HTML")
     try:
