@@ -93,8 +93,8 @@ function renderSignals(){
 }
 
 function chartBundle(container,height){
-  const chart=LightweightCharts.createChart(container,{width:container.clientWidth,height,layout:{background:{type:'solid',color:'#151815'},textColor:'#929b91',fontFamily:'IBM Plex Mono',fontSize:11},grid:{vertLines:{color:'#232823'},horzLines:{color:'#232823'}},rightPriceScale:{borderColor:'#30362f',scaleMargins:{top:.08,bottom:.25}},timeScale:{borderColor:'#30362f',timeVisible:true,secondsVisible:false,rightOffset:5,barSpacing:7,minBarSpacing:3},crosshair:{mode:LightweightCharts.CrosshairMode.Normal,vertLine:{color:'#586259',width:1,style:2,labelBackgroundColor:'#30362f'},horzLine:{color:'#586259',width:1,style:2,labelBackgroundColor:'#30362f'}},handleScale:{axisPressedMouseMove:true},handleScroll:{vertTouchDrag:false}});
-  const candles=chart.addCandlestickSeries({upColor:'#66d18a',downColor:'#ff675f',borderVisible:false,wickUpColor:'#66d18a',wickDownColor:'#ff675f',priceLineVisible:true,lastValueVisible:true});
+  const chart=LightweightCharts.createChart(container,{width:container.clientWidth,height,layout:{background:{type:'solid',color:'#10151c'},textColor:'#8f9baa',fontFamily:'Inter',fontSize:11},grid:{vertLines:{color:'#1d2530'},horzLines:{color:'#1d2530'}},rightPriceScale:{borderColor:'#293340',scaleMargins:{top:.08,bottom:.25}},timeScale:{borderColor:'#293340',timeVisible:true,secondsVisible:false,rightOffset:5,barSpacing:7,minBarSpacing:3},crosshair:{mode:LightweightCharts.CrosshairMode.Normal,vertLine:{color:'#5f7185',width:1,style:2,labelBackgroundColor:'#27313d'},horzLine:{color:'#5f7185',width:1,style:2,labelBackgroundColor:'#27313d'}},handleScale:{axisPressedMouseMove:true},handleScroll:{vertTouchDrag:false}});
+  const candles=chart.addCandlestickSeries({upColor:'#40d99b',downColor:'#ff6477',borderVisible:false,wickUpColor:'#40d99b',wickDownColor:'#ff6477',priceLineVisible:true,lastValueVisible:true});
   const volume=chart.addHistogramSeries({priceFormat:{type:'volume'},priceScaleId:'volume',lastValueVisible:false,priceLineVisible:false});
   chart.priceScale('volume').applyOptions({scaleMargins:{top:.82,bottom:0}});
   return{chart,candles,volume,lines:[]};
@@ -102,7 +102,7 @@ function chartBundle(container,height){
 
 function setChartData(bundle,data){
   bundle.candles.setData(data);
-  bundle.volume.setData(data.map(candle=>({time:candle.time,value:candle.volume||0,color:candle.close>=candle.open?'rgba(102,209,138,.28)':'rgba(255,103,95,.28)'})));
+  bundle.volume.setData(data.map(candle=>({time:candle.time,value:candle.volume||0,color:candle.close>=candle.open?'rgba(64,217,155,.24)':'rgba(255,100,119,.24)'})));
   bundle.chart.timeScale().fitContent();
 }
 
@@ -113,7 +113,7 @@ function clearPriceLines(bundle){
 
 function addSignalLines(bundle,signal){
   clearPriceLines(bundle);
-  const levels=[{key:'entry',title:'ENTRY',color:'#65b9d6'},{key:'stop',title:'STOP',color:'#ff675f'},{key:'tp1',title:'TP1',color:'#66d18a'},{key:'tp2',title:'TP2',color:'#66d18a'}];
+  const levels=[{key:'entry',title:'ENTRY',color:'#69b8ff'},{key:'stop',title:'STOP',color:'#ff6477'},{key:'tp1',title:'TP1',color:'#40d99b'},{key:'tp2',title:'TP2',color:'#40d99b'}];
   const levelPrices=levels.map(level=>Number(signal[level.key])).filter(Number.isFinite);
   bundle.candles.applyOptions({autoscaleInfoProvider:original=>{
     const info=original();
