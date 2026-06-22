@@ -754,6 +754,122 @@ STRINGS: dict[str, dict[str, Any]] = {
 }
 
 
+STRINGS["ru"].update({
+    "payment_paywall": (
+        "🔒 <b>Бесплатные сигналы закончились</b>\n\n"
+        "Доступ на <b>{days} дней</b>: <b>{amount} USDT</b>.\n"
+        "Сеть: <b>{network}</b>\nКошелёк:\n<code>{wallet}</code>\n\n"
+        "После перевода отправь:\n<code>/paid TX_HASH</code>\n\n"
+        "Бот проверит транзакцию и автоматически активирует доступ."
+    ),
+    "trial_remaining": "🎁 Бесплатных сигналов осталось: <b>{count}</b>",
+    "payment_paid_usage": "Отправь хеш транзакции:\n<code>/paid TX_HASH</code>",
+    "payment_checking": "🔎 Проверяю подтверждённую USDT TRC20-транзакцию...",
+    "payment_tx_used": "❌ Этот TX-хеш уже использован для другой подписки.",
+    "payment_invalid_hash": "❌ Неверный TX-хеш. Он должен содержать 64 символа.",
+    "payment_not_found": "⏳ Подтверждённый перевод пока не найден. Проверь сеть, адрес и TX-хеш, затем повтори /paid через несколько минут.",
+    "payment_amount_low": "❌ Получено {paid} USDT, требуется минимум {required} USDT.",
+    "payment_verify_error": "⚠️ Сервис проверки временно недоступен. Попробуй /paid ещё раз через несколько минут.",
+    "payment_approved": "✅ Оплата подтверждена. Доступ активирован на <b>{days} дней</b>, до <b>{until}</b>.",
+    "status_active": "✅ Оплачено до: <b>{until}</b>",
+    "status_inactive": "⏳ Активной подписки нет",
+    "status_payment": "Последняя оплата:\nTX: <code>{tx}</code>\nСтатус: <b>{status}</b>",
+    "status_summary": "👤 <b>Статус доступа</b>\n\n{access}\nБесплатных сигналов: <b>{left}</b> из {total}{claim}",
+})
+
+STRINGS["en"].update({
+    "payment_paywall": (
+        "🔒 <b>Your free signals have ended</b>\n\n"
+        "Access for <b>{days} days</b>: <b>{amount} USDT</b>.\n"
+        "Network: <b>{network}</b>\nWallet:\n<code>{wallet}</code>\n\n"
+        "After payment, send:\n<code>/paid TX_HASH</code>\n\n"
+        "The bot will verify the transaction and activate access automatically."
+    ),
+    "trial_remaining": "🎁 Free signals remaining: <b>{count}</b>",
+    "payment_paid_usage": "Send the transaction hash:\n<code>/paid TX_HASH</code>",
+    "payment_checking": "🔎 Checking the confirmed USDT TRC20 transaction...",
+    "payment_tx_used": "❌ This transaction hash has already been used for another subscription.",
+    "payment_invalid_hash": "❌ Invalid transaction hash. It must contain 64 characters.",
+    "payment_not_found": "⏳ Confirmed payment not found yet. Check the network, wallet and hash, then retry /paid in a few minutes.",
+    "payment_amount_low": "❌ Received {paid} USDT; at least {required} USDT is required.",
+    "payment_verify_error": "⚠️ The verification service is temporarily unavailable. Retry /paid in a few minutes.",
+    "payment_approved": "✅ Payment confirmed. Access is active for <b>{days} days</b>, until <b>{until}</b>.",
+    "status_active": "✅ Paid until: <b>{until}</b>",
+    "status_inactive": "⏳ No active subscription",
+    "status_payment": "Latest payment:\nTX: <code>{tx}</code>\nStatus: <b>{status}</b>",
+    "status_summary": "👤 <b>Access status</b>\n\n{access}\nFree signals: <b>{left}</b> of {total}{claim}",
+})
+
+STRINGS["de"].update({
+    "payment_paywall": (
+        "🔒 <b>Deine kostenlosen Signale sind aufgebraucht</b>\n\n"
+        "Zugang für <b>{days} Tage</b>: <b>{amount} USDT</b>.\n"
+        "Netzwerk: <b>{network}</b>\nWallet:\n<code>{wallet}</code>\n\n"
+        "Nach der Zahlung sende:\n<code>/paid TX_HASH</code>\n\n"
+        "Der Bot prüft die Transaktion und aktiviert den Zugang automatisch."
+    ),
+    "trial_remaining": "🎁 Verbleibende kostenlose Signale: <b>{count}</b>",
+    "payment_paid_usage": "Sende den Transaktions-Hash:\n<code>/paid TX_HASH</code>",
+    "payment_checking": "🔎 Bestätigte USDT-TRC20-Transaktion wird geprüft...",
+    "payment_tx_used": "❌ Dieser Transaktions-Hash wurde bereits verwendet.",
+    "payment_invalid_hash": "❌ Ungültiger Transaktions-Hash. Er muss 64 Zeichen enthalten.",
+    "payment_not_found": "⏳ Bestätigte Zahlung noch nicht gefunden. Prüfe Netzwerk, Wallet und Hash und versuche /paid später erneut.",
+    "payment_amount_low": "❌ Erhalten: {paid} USDT; erforderlich: mindestens {required} USDT.",
+    "payment_verify_error": "⚠️ Der Prüfdienst ist vorübergehend nicht verfügbar. Versuche /paid später erneut.",
+    "payment_approved": "✅ Zahlung bestätigt. Zugang für <b>{days} Tage</b> bis <b>{until}</b> aktiviert.",
+    "status_active": "✅ Bezahlt bis: <b>{until}</b>",
+    "status_inactive": "⏳ Kein aktives Abonnement",
+    "status_payment": "Letzte Zahlung:\nTX: <code>{tx}</code>\nStatus: <b>{status}</b>",
+    "status_summary": "👤 <b>Zugangsstatus</b>\n\n{access}\nKostenlose Signale: <b>{left}</b> von {total}{claim}",
+})
+
+STRINGS["fr"].update({
+    "payment_paywall": (
+        "🔒 <b>Tes signaux gratuits sont épuisés</b>\n\n"
+        "Accès pendant <b>{days} jours</b> : <b>{amount} USDT</b>.\n"
+        "Réseau : <b>{network}</b>\nPortefeuille :\n<code>{wallet}</code>\n\n"
+        "Après le paiement, envoie :\n<code>/paid TX_HASH</code>\n\n"
+        "Le bot vérifiera la transaction et activera automatiquement l'accès."
+    ),
+    "trial_remaining": "🎁 Signaux gratuits restants : <b>{count}</b>",
+    "payment_paid_usage": "Envoie le hash de transaction :\n<code>/paid TX_HASH</code>",
+    "payment_checking": "🔎 Vérification de la transaction USDT TRC20 confirmée...",
+    "payment_tx_used": "❌ Ce hash de transaction a déjà été utilisé.",
+    "payment_invalid_hash": "❌ Hash incorrect. Il doit contenir 64 caractères.",
+    "payment_not_found": "⏳ Paiement confirmé introuvable. Vérifie le réseau, le portefeuille et le hash, puis réessaie /paid.",
+    "payment_amount_low": "❌ Reçu : {paid} USDT ; minimum requis : {required} USDT.",
+    "payment_verify_error": "⚠️ Le service de vérification est indisponible. Réessaie /paid dans quelques minutes.",
+    "payment_approved": "✅ Paiement confirmé. Accès activé pendant <b>{days} jours</b>, jusqu'au <b>{until}</b>.",
+    "status_active": "✅ Payé jusqu'au : <b>{until}</b>",
+    "status_inactive": "⏳ Aucun abonnement actif",
+    "status_payment": "Dernier paiement :\nTX : <code>{tx}</code>\nStatut : <b>{status}</b>",
+    "status_summary": "👤 <b>Statut d'accès</b>\n\n{access}\nSignaux gratuits : <b>{left}</b> sur {total}{claim}",
+})
+
+STRINGS["es"].update({
+    "payment_paywall": (
+        "🔒 <b>Tus señales gratuitas se han agotado</b>\n\n"
+        "Acceso durante <b>{days} días</b>: <b>{amount} USDT</b>.\n"
+        "Red: <b>{network}</b>\nBilletera:\n<code>{wallet}</code>\n\n"
+        "Después del pago, envía:\n<code>/paid TX_HASH</code>\n\n"
+        "El bot verificará la transacción y activará el acceso automáticamente."
+    ),
+    "trial_remaining": "🎁 Señales gratuitas restantes: <b>{count}</b>",
+    "payment_paid_usage": "Envía el hash de la transacción:\n<code>/paid TX_HASH</code>",
+    "payment_checking": "🔎 Verificando la transacción USDT TRC20 confirmada...",
+    "payment_tx_used": "❌ Este hash de transacción ya fue utilizado.",
+    "payment_invalid_hash": "❌ Hash incorrecto. Debe contener 64 caracteres.",
+    "payment_not_found": "⏳ Aún no se encontró el pago confirmado. Revisa la red, la billetera y el hash, y repite /paid.",
+    "payment_amount_low": "❌ Recibido: {paid} USDT; se requieren al menos {required} USDT.",
+    "payment_verify_error": "⚠️ El servicio de verificación no está disponible. Repite /paid en unos minutos.",
+    "payment_approved": "✅ Pago confirmado. Acceso activado durante <b>{days} días</b>, hasta <b>{until}</b>.",
+    "status_active": "✅ Pagado hasta: <b>{until}</b>",
+    "status_inactive": "⏳ Sin suscripción activa",
+    "status_payment": "Último pago:\nTX: <code>{tx}</code>\nEstado: <b>{status}</b>",
+    "status_summary": "👤 <b>Estado de acceso</b>\n\n{access}\nSeñales gratuitas: <b>{left}</b> de {total}{claim}",
+})
+
+
 def t(lang: str, key: str, **kwargs: Any) -> str:
     lang_strings = STRINGS.get(lang, STRINGS["en"])
     text = lang_strings.get(key) or STRINGS["en"].get(key, key)

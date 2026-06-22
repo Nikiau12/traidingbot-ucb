@@ -33,8 +33,9 @@ from core.config import (
     MEXC_LISTING_CHECK_INTERVAL, MEXC_NEW_LISTINGS_URL,
     FREE_TRIAL_SIGNALS, PAID_ACCESS_HOURS,
     USDT_PAYMENT_ADDRESS, USDT_PAYMENT_AMOUNT, USDT_PAYMENT_NETWORK,
-    ACCESS_STATE_FILE, USER_REGISTRY_FILE,
+    ACCESS_STATE_FILE, USER_REGISTRY_FILE, TRONGRID_API_KEY,
 )
+from core.tron_payment import TronPaymentVerifier
 
 # ── наши торговые модули из trading/ ──
 _TRADING_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trading")
@@ -131,7 +132,37 @@ listing_watcher = MexcListingWatcher(
     announcements_snapshot_file=MEXC_ANNOUNCEMENTS_SNAPSHOT_FILE,
     announcements_url=MEXC_NEW_LISTINGS_URL,
 )
-notifier = Notifier(bot_instance, active_users, access_manager=access_manager)
+payment_verifier = TronPaymentVerifier(
+    USDT_PAYMENT_ADDRESS,
+    USDT_PAYMENT_AMOUNT,
+    api_key=TRONGRID_API_KEY,
+)
+
+
+def _payment_paywall(chat_id) -> str:
+    lang = get_lang(int(chat_id))
+    return _t(
+        lang,
+        "payment_paywall",
+        free_signals=FREE_TRIAL_SIGNALS,
+        amount=USDT_PAYMENT_AMOUNT,
+        days=PAID_ACCESS_HOURS // 24,
+        network=USDT_PAYMENT_NETWORK,
+        wallet=USDT_PAYMENT_ADDRESS,
+    )
+
+
+def _trial_notice(chat_id, remaining: int) -> str:
+    return _t(get_lang(int(chat_id)), "trial_remaining", count=remaining)
+
+
+notifier = Notifier(
+    bot_instance,
+    active_users,
+    access_manager=access_manager,
+    paywall_formatter=_payment_paywall,
+    trial_formatter=_trial_notice,
+)
 # Notifier may add the fallback chat from the environment; onboarding still applies.
 for _chat_id in list(notifier.active_users):
     if not _has_saved_deposit(_chat_id):
@@ -211,10 +242,13 @@ async def require_access(message: types.Message) -> bool:
     chat_id = str(message.chat.id)
     if is_admin(chat_id):
         return True
-    allowed, _ = access_manager.consume_signal(chat_id)
+    allowed, mode = access_manager.consume_signal(chat_id)
     if allowed:
+        if mode == "trial":
+            remaining = access_manager.status(chat_id)["trial_left"]
+            await message.reply(_trial_notice(chat_id, remaining), parse_mode="HTML")
         return True
-    await message.reply(access_manager.format_paywall(), parse_mode="HTML")
+    await message.reply(_payment_paywall(chat_id), parse_mode="HTML")
     return False
 
 
@@ -327,43 +361,95 @@ async def cmd_help(message: types.Message):
 
 @router.message(Command("subscribe"))
 async def cmd_subscribe(message: types.Message):
-    await message.reply(access_manager.format_paywall(), parse_mode="HTML")
+    await message.reply(_payment_paywall(str(message.chat.id)), parse_mode="HTML")
 
 
 @router.message(Command("status"))
 async def cmd_status(message: types.Message):
+    lang = get_lang(message.from_user.id)
     s = access_manager.status(str(message.chat.id))
     access_text = (
-        f"✅ Оплачен до: <b>{format_ts(s['paid_until'])}</b>"
-        if s["has_paid_access"] else "⏳ Активной оплаты нет"
+        _t(lang, "status_active", until=format_ts(s["paid_until"]))
+        if s["has_paid_access"] else _t(lang, "status_inactive")
     )
     claim = s.get("payment_claim") or {}
     claim_text = (
-        f"\n\nПоследняя заявка:\nTX: <code>{claim.get('tx_hash','н/д')}</code>\n"
-        f"Статус: <b>{claim.get('status','pending')}</b>"
+        "\n\n" + _t(
+            lang,
+            "status_payment",
+            tx=claim.get("tx_hash", "—"),
+            status=claim.get("status", "pending"),
+        )
         if claim else ""
     )
     await message.reply(
-        f"👤 <b>Статус доступа</b>\n\n{access_text}\n"
-        f"Бесплатных сигналов: <b>{s['trial_left']}</b> из {FREE_TRIAL_SIGNALS}"
-        f"{claim_text}",
+        _t(
+            lang,
+            "status_summary",
+            access=access_text,
+            left=s["trial_left"],
+            total=FREE_TRIAL_SIGNALS,
+            claim=claim_text,
+        ),
         parse_mode="HTML",
     )
 
 
 @router.message(Command("paid"))
 async def cmd_paid(message: types.Message):
+    lang = get_lang(message.from_user.id)
     parts = message.text.split(maxsplit=1)
     if len(parts) < 2:
-        await message.reply("Пришли хеш транзакции:\n<code>/paid TX_HASH</code>", parse_mode="HTML")
+        await message.reply(_t(lang, "payment_paid_usage"), parse_mode="HTML")
         return
     chat_id = str(message.chat.id)
     tx_hash = parts[1].strip()
-    access_manager.record_payment_claim(chat_id, tx_hash)
-    await message.reply("✅ Заявка принята. Админ проверит и включит доступ.", parse_mode="HTML")
+    if access_manager.find_payment_by_tx_hash(tx_hash):
+        await message.reply(_t(lang, "payment_tx_used"), parse_mode="HTML")
+        return
+
+    status_msg = await message.reply(_t(lang, "payment_checking"), parse_mode="HTML")
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, payment_verifier.verify, tx_hash)
+    except Exception as e:
+        print(f"Payment verification failed: {e}")
+        await status_msg.edit_text(_t(lang, "payment_verify_error"), parse_mode="HTML")
+        return
+
+    if not result.get("ok"):
+        reason = result.get("reason")
+        key = {
+            "invalid_hash": "payment_invalid_hash",
+            "amount_too_low": "payment_amount_low",
+        }.get(reason, "payment_not_found")
+        await status_msg.edit_text(
+            _t(
+                lang,
+                key,
+                paid=result.get("paid_amount", "0"),
+                required=USDT_PAYMENT_AMOUNT,
+            ),
+            parse_mode="HTML",
+        )
+        return
+
+    # Re-check after the network request to prevent two simultaneous claims.
+    if access_manager.find_payment_by_tx_hash(tx_hash):
+        await status_msg.edit_text(_t(lang, "payment_tx_used"), parse_mode="HTML")
+        return
+
+    payment_details = {key: value for key, value in result.items() if key not in {"ok", "tx_hash"}}
+    access_manager.record_payment_claim(chat_id, tx_hash, **payment_details)
+    paid_until = access_manager.grant_access(chat_id, hours=PAID_ACCESS_HOURS)
+    await status_msg.edit_text(
+        _t(lang, "payment_approved", days=PAID_ACCESS_HOURS // 24, until=format_ts(paid_until)),
+        parse_mode="HTML",
+    )
     admin_msg = (
-        f"💸 <b>Новая заявка на оплату</b>\n\nUser: <code>{chat_id}</code>\n"
-        f"TX: <code>{tx_hash}</code>\n\n<code>/grant {chat_id}</code>"
+        f"💸 <b>Оплата подтверждена автоматически</b>\n\nUser: <code>{chat_id}</code>\n"
+        f"Сумма: <b>{result['paid_amount']} USDT</b>\nTX: <code>{tx_hash}</code>\n"
+        f"Доступ до: <b>{format_ts(paid_until)}</b>\n\nРезервная отмена: <code>/revoke {chat_id}</code>"
     )
     for admin_id in ADMIN_CHAT_IDS:
         try:

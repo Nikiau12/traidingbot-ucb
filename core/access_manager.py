@@ -61,15 +61,29 @@ class AccessManager:
         self._save(state)
         return True
 
-    def record_payment_claim(self, chat_id: str, tx_hash: str) -> dict:
+    def find_payment_by_tx_hash(self, tx_hash: str, exclude_chat_id: str = None):
+        normalized = str(tx_hash).lower()
+        for chat_id, user in self._load().get("users", {}).items():
+            claims = list(user.get("payment_claims") or [])
+            legacy_claim = user.get("last_payment_claim") or {}
+            if legacy_claim and not claims:
+                claims.append(legacy_claim)
+            for claim in claims:
+                if str(claim.get("tx_hash", "")).lower() == normalized and str(chat_id) != str(exclude_chat_id):
+                    return {"chat_id": str(chat_id), **claim}
+        return None
+
+    def record_payment_claim(self, chat_id: str, tx_hash: str, **details) -> dict:
         state = self._load()
         user = self._user(state, chat_id)
         claim = {
             "tx_hash": tx_hash,
             "status": "pending",
             "created_at": int(time.time()),
+            **details,
         }
         user["last_payment_claim"] = claim
+        user.setdefault("payment_claims", []).append(claim)
         user["paywall_sent"] = False
         self._save(state)
         return claim
@@ -78,12 +92,17 @@ class AccessManager:
         state = self._load()
         user = self._user(state, chat_id)
         duration = (hours * 60 * 60) if hours else self.paid_access_seconds
-        paid_until = int(time.time() + duration)
+        paid_until = int(max(time.time(), user.get("paid_until", 0)) + duration)
         user["paid_until"] = paid_until
         user["paywall_sent"] = False
         if user.get("last_payment_claim"):
             user["last_payment_claim"]["status"] = "approved"
             user["last_payment_claim"]["approved_at"] = int(time.time())
+            approved_hash = user["last_payment_claim"].get("tx_hash")
+            for claim in user.get("payment_claims", []):
+                if claim.get("tx_hash") == approved_hash:
+                    claim["status"] = "approved"
+                    claim["approved_at"] = user["last_payment_claim"]["approved_at"]
         self._save(state)
         return paid_until
 
@@ -109,7 +128,7 @@ class AccessManager:
         return (
             "🔒 <b>Бесплатные сигналы закончились</b>\n\n"
             f"У тебя было {self.free_trial_signals} бесплатных сигналов. "
-            f"Чтобы получить доступ еще на {self.paid_access_seconds // 3600} часов, "
+            f"Чтобы получить доступ на {self.paid_access_seconds // 86400} дней, "
             f"переведи <b>{self.payment_amount} USDT</b>.\n\n"
             f"Сеть: <b>{self.payment_network}</b>\n"
             f"Кошелек:\n<code>{wallet}</code>\n\n"

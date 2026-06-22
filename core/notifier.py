@@ -34,10 +34,19 @@ class Notifier:
         "choppy range environment": "Опасная торговля внутри узкого диапазона"
     }
 
-    def __init__(self, bot: Bot = None, active_users: set = None, access_manager=None):
+    def __init__(
+        self,
+        bot: Bot = None,
+        active_users: set = None,
+        access_manager=None,
+        paywall_formatter=None,
+        trial_formatter=None,
+    ):
         self.bot = bot
         self.active_users = active_users if active_users is not None else set()
         self.access_manager = access_manager
+        self.paywall_formatter = paywall_formatter
+        self.trial_formatter = trial_formatter
         if TELEGRAM_CHAT_ID: # Fallback just in case
             self.active_users.add(str(TELEGRAM_CHAT_ID))
             
@@ -67,15 +76,22 @@ class Notifier:
 
         try:
             if gated and self.access_manager and str(chat_id) not in ADMIN_CHAT_IDS:
-                allowed, _ = self.access_manager.consume_signal(str(chat_id))
+                allowed, mode = self.access_manager.consume_signal(str(chat_id))
                 if not allowed:
                     if self.access_manager.should_send_paywall(str(chat_id)):
                         await self.bot.send_message(
                             chat_id=chat_id,
-                            text=self.access_manager.format_paywall(),
+                            text=(
+                                self.paywall_formatter(chat_id)
+                                if self.paywall_formatter
+                                else self.access_manager.format_paywall()
+                            ),
                             parse_mode="HTML",
                         )
                     return False
+                if mode == "trial" and self.trial_formatter:
+                    remaining = self.access_manager.status(str(chat_id))["trial_left"]
+                    text += "\n\n" + self.trial_formatter(chat_id, remaining)
             await self.bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
             return True
         except Exception as e:
