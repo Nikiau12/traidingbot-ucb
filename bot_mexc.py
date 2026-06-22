@@ -1165,7 +1165,7 @@ async def plan_scanner_loop():
                             continue
                         if not _is_usdt_pair(symbol) or _is_junk_symbol(symbol):
                             continue
-                        if not st.should_send_alert(symbol, side, conf):
+                        if not st.should_send_alert(symbol, side, conf, plan):
                             continue
 
                         signal_id = st.save_signal(plan, symbol, side, conf)
@@ -1195,7 +1195,7 @@ async def plan_scanner_loop():
                             delivered = await notifier.send_message_to_user(chat_id, alert)
                             if delivered and signal_id:
                                 st.grant_signal_access(user_id, signal_id)
-                        st.mark_sent(symbol, side, conf)
+                        st.mark_sent(symbol, side, conf, plan)
                         sent += 1
                         await asyncio.sleep(0.5)
                     print(f"[PlanScanner] Done: {len(results)} scanned, {sent} alerts sent")
