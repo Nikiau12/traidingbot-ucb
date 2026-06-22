@@ -61,7 +61,6 @@ _WHOP_VALIDATE_URL = "https://api.whop.com/api/v2/memberships/validate_license"
 
 # ── инициализация бота ──
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
-dp  = Dispatcher()
 router = Router()
 
 SPIKE_COOLDOWN = 4 * 3600
@@ -1225,6 +1224,7 @@ async def listing_watcher_loop():
 
 async def main():
     print("UCB_TRADING_BOT — unified system starting...")
+    dp = Dispatcher()
     dp.include_router(router)
     t1 = asyncio.create_task(market_scanner_loop())
     t2 = asyncio.create_task(plan_scanner_loop())
