@@ -296,6 +296,19 @@ async def cmd_start(message: types.Message, state: FSMContext):
     access_manager.ensure_user(chat_id)
     if is_new:
         print(f"Новый пользователь: {chat_id}")
+
+    # Mini App payment buttons use /start subscribe_<language> deep links.
+    start_payload = (message.text or "").split(maxsplit=1)
+    payload = start_payload[1].strip().lower() if len(start_payload) > 1 else ""
+    if payload.startswith("subscribe_"):
+        lang = payload.removeprefix("subscribe_")
+        if lang not in {"en", "ru", "de", "fr", "es"}:
+            lang = get_lang(message.from_user.id)
+        st.set_user_lang(message.from_user.id, lang)
+        await state.clear()
+        await message.reply(_payment_paywall(chat_id), parse_mode="HTML")
+        return
+
     st.set_user_lang(message.from_user.id, "en")
     if not _has_saved_deposit(message.from_user.id):
         notifier.active_users.discard(chat_id)
