@@ -44,6 +44,11 @@
           <article class="metric subscription"><span data-i18n="access">Access</span><strong id="access-metric">—</strong><small id="access-detail"></small></article>
         </div>
 
+        <section class="trial-paywall" id="overview-paywall" hidden>
+          <div class="paywall-copy"><span class="paywall-icon"><i data-lucide="lock-keyhole"></i></span><div><p class="eyebrow" data-i18n="subscription">SUBSCRIPTION</p><h2 data-i18n="trialComplete">Free trial completed</h2><p data-i18n="trialCompleteCopy">You used 5 free signals. Subscribe to continue receiving new setups.</p></div></div>
+          <div class="paywall-action"><strong>29.99 <small>USDT / 30d</small></strong><button type="button" class="primary-button paywall-button"><i data-lucide="unlock-keyhole"></i><span data-i18n="unlockSignals">Unlock signals</span></button></div>
+        </section>
+
         <section class="chart-section">
           <div class="section-toolbar">
             <div class="symbol-title"><img id="coin-icon" src="https://assets.coincap.io/assets/icons/btc@2x.png" alt=""><div><strong id="chart-symbol">BTC / USDT</strong><span id="chart-price">—</span></div></div>
@@ -67,6 +72,10 @@
 
       <section class="view" id="signals-view" data-view="signals">
         <div class="page-heading"><div><p class="eyebrow" data-i18n="scanner">MARKET SCANNER</p><h1 data-i18n="signalHistory">Signal history</h1></div></div>
+        <section class="trial-paywall compact" id="signals-paywall" hidden>
+          <div class="paywall-copy"><span class="paywall-icon"><i data-lucide="lock-keyhole"></i></span><div><h2 data-i18n="trialComplete">Free trial completed</h2><p data-i18n="trialCompleteCopy">You used 5 free signals. Subscribe to continue receiving new setups.</p></div></div>
+          <div class="paywall-action"><strong>29.99 <small>USDT / 30d</small></strong><button type="button" class="primary-button paywall-button"><i data-lucide="unlock-keyhole"></i><span data-i18n="unlockSignals">Unlock signals</span></button></div>
+        </section>
         <div class="filter-row"><button class="filter selected" data-filter="ALL" data-i18n="all">All</button><button class="filter" data-filter="LONG">LONG</button><button class="filter" data-filter="SHORT">SHORT</button></div>
         <div id="signal-history" class="signal-list full"></div>
       </section>

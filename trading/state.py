@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from typing import Dict
+from typing import Dict, Optional
 
 try:
     import psycopg
@@ -12,6 +12,14 @@ except ImportError:
 
 STATE_PATH = os.path.expanduser("~/.openclaw/trading/bot_state.json")
 DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+
+def normalize_usdt_symbol(symbol: str) -> Optional[str]:
+    market = str(symbol or "").upper().strip().split(":", 1)[0]
+    normalized = market.replace("/", "_").replace("-", "_")
+    if not normalized.endswith("_USDT"):
+        return None
+    return normalized
 
 
 def _db_ready() -> bool:
@@ -162,9 +170,12 @@ def set_user_setting(user_id: int, key: str, value) -> None:
     _save(state)
 
 
-def save_signal(plan: dict, symbol: str, side: str, confidence: float) -> None:
+def save_signal(plan: dict, symbol: str, side: str, confidence: float):
+    symbol = normalize_usdt_symbol(symbol)
+    if not symbol:
+        return None
     if not _db_ready():
-        return
+        return None
     primary = plan.get("primary") or {}
     tps = primary.get("tps") or []
     try:
@@ -178,18 +189,48 @@ def save_signal(plan: dict, symbol: str, side: str, confidence: float) -> None:
                 )
                 """
             )
-            connection.execute(
+            row = connection.execute(
                 """
                 INSERT INTO signals (symbol, side, confidence, price, entry, stop, tp1, tp2)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
                 """,
                 (symbol, side.upper(), confidence, plan.get("price"), primary.get("entry"),
                  primary.get("stop"), tps[0].get("price") if tps else None,
                  tps[1].get("price") if len(tps) > 1 else None),
+            ).fetchone()
+            connection.commit()
+            return row[0] if row else None
+    except Exception as exc:
+        print(f"[state] signal history write failed: {exc}")
+        return None
+
+
+def grant_signal_access(user_id: int, signal_id: int) -> None:
+    if not _db_ready() or not signal_id:
+        return
+    try:
+        with psycopg.connect(DATABASE_URL) as connection:
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS user_signal_access (
+                    telegram_user_id BIGINT NOT NULL,
+                    signal_id BIGINT NOT NULL,
+                    granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (telegram_user_id, signal_id)
+                )
+                """
+            )
+            connection.execute(
+                """
+                INSERT INTO user_signal_access (telegram_user_id, signal_id)
+                VALUES (%s, %s) ON CONFLICT DO NOTHING
+                """,
+                (user_id, signal_id),
             )
             connection.commit()
     except Exception as exc:
-        print(f"[state] signal history write failed: {exc}")
+        print(f"[state] signal access write failed: {exc}")
 
 
 def is_whop_key_used(key: str) -> bool:

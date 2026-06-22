@@ -54,3 +54,14 @@
   .level-legend{gap:12px;justify-content:space-between}.detail-levels,.detail-position{grid-template-columns:1fr 1fr}
   .detail-metric{border-bottom:1px solid var(--line)}.detail-metric:nth-child(2n){border-right:0}.detail-metric:nth-last-child(-n+2){border-bottom:0}
 }
+
+/* Trial completion and subscription prompt */
+.trial-paywall{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:22px;margin:0 0 24px;padding:18px;border:1px solid #465047;border-left:3px solid var(--yellow);border-radius:var(--radius);background:#1b1e19}
+.trial-paywall[hidden]{display:none}.trial-paywall.compact{margin-top:-5px}
+.paywall-copy{display:flex;align-items:flex-start;gap:13px}.paywall-icon{width:36px;height:36px;display:grid;place-items:center;flex:0 0 auto;border:1px solid #56543d;border-radius:4px;color:var(--yellow);background:#242419}.paywall-icon svg{width:17px}
+.paywall-copy h2{margin:0;font-size:18px;line-height:1.2}.paywall-copy p:not(.eyebrow){max-width:540px;margin:7px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
+.paywall-action{display:flex;align-items:center;gap:15px}.paywall-action>strong{white-space:nowrap;font:600 18px "IBM Plex Mono"}.paywall-action>strong small{display:block;margin-top:4px;color:var(--muted);font-size:8px}.paywall-action .primary-button{min-width:154px;padding:0 15px}
+
+@media(max-width:680px){
+  .trial-paywall{grid-template-columns:1fr;gap:16px;padding:15px 13px}.paywall-action{justify-content:space-between}.paywall-action .primary-button{min-width:0}
+}

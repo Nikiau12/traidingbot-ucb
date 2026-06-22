@@ -6,6 +6,7 @@ import json
 import os
 import time
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
@@ -27,7 +28,14 @@ PAYMENT_AMOUNT = os.getenv("SUBSCRIPTION_PRICE_USDT", "29.99")
 PAYMENT_DAYS = int(os.getenv("SUBSCRIPTION_DAYS", "30"))
 PAYMENT_NETWORK = os.getenv("USDT_PAYMENT_NETWORK", "TRC20 (Tron)")
 PAYMENT_WALLET = os.getenv("USDT_PAYMENT_ADDRESS", "TBkS2PU1STndH6hsRGCHT2CE2ZyUDfsZ1c")
+FREE_TRIAL_SIGNALS = int(os.getenv("FREE_TRIAL_SIGNALS", "5"))
 SUPPORTED_LANGUAGES = {"en", "ru", "de", "fr", "es"}
+
+
+def normalize_usdt_symbol(symbol: str) -> Optional[str]:
+    market = str(symbol or "").upper().strip().split(":", 1)[0]
+    normalized = market.replace("/", "_").replace("-", "_")
+    return normalized if normalized.endswith("_USDT") else None
 
 PAYMENT_MESSAGES = {
     "en": (
@@ -119,6 +127,12 @@ def init_db() -> None:
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS signals_created_at_idx ON signals (created_at DESC);
+            CREATE TABLE IF NOT EXISTS user_signal_access (
+                telegram_user_id BIGINT NOT NULL,
+                signal_id BIGINT NOT NULL,
+                granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (telegram_user_id, signal_id)
+            );
             """
         )
         connection.commit()
@@ -174,6 +188,8 @@ def demo_profile(user: dict) -> dict:
         "leverage": 10.0,
         "margin": "cross",
         "trial_left": 3,
+        "trial_total": FREE_TRIAL_SIGNALS,
+        "has_paid_access": False,
         "paid_until": None,
         "payment_status": None,
         "bot_username": bot_username(),
@@ -248,7 +264,9 @@ def me(x_telegram_init_data: str = Header(default="")):
         "risk_pct": float(row[2]),
         "leverage": float(row[3]),
         "margin": row[4],
-        "trial_left": max(0, 5 - int(row[5])),
+        "trial_left": max(0, FREE_TRIAL_SIGNALS - int(row[5])),
+        "trial_total": FREE_TRIAL_SIGNALS,
+        "has_paid_access": bool(row[6] and row[6] > datetime.now(timezone.utc)),
         "paid_until": row[6].isoformat() if row[6] else None,
         "payment_status": row[7],
         "bot_username": bot_username(),
@@ -321,23 +339,83 @@ def payment_instructions(x_telegram_init_data: str = Header(default="")):
 
 @app.get("/api/signals")
 def signals(x_telegram_init_data: str = Header(default="")):
-    get_user(x_telegram_init_data)
+    user = get_user(x_telegram_init_data)
     if not DATABASE_URL:
         return [
             {"id": 3, "symbol": "BTC_USDT", "side": "LONG", "confidence": 0.78, "price": 64120, "entry": 64000, "stop": 62800, "tp1": 65500, "tp2": 67000, "created_at": "2026-06-22T08:25:00Z"},
             {"id": 2, "symbol": "SOL_USDT", "side": "SHORT", "confidence": 0.69, "price": 147.9, "entry": 148.2, "stop": 152.6, "tp1": 141.5, "tp2": 136.8, "created_at": "2026-06-22T07:05:00Z"},
             {"id": 1, "symbol": "ETH_USDT", "side": "LONG", "confidence": 0.66, "price": 3551, "entry": 3540, "stop": 3448, "tp1": 3695, "tp2": 3820, "created_at": "2026-06-22T05:05:00Z"},
         ]
+    user_id = int(user["id"])
+    usdt_only = "UPPER(symbol) ~ '(_USDT|/USDT)(:USDT)?$'"
+    usdt_only_aliased = "UPPER(s.symbol) ~ '(_USDT|/USDT)(:USDT)?$'"
     with db() as connection, connection.cursor() as cursor:
         cursor.execute(
             """
-            SELECT id, symbol, side, confidence, price, entry, stop, tp1, tp2, created_at
-            FROM signals ORDER BY created_at DESC LIMIT 30
+            CREATE TABLE IF NOT EXISTS user_signal_access (
+                telegram_user_id BIGINT NOT NULL,
+                signal_id BIGINT NOT NULL,
+                granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (telegram_user_id, signal_id)
+            )
             """
         )
-        rows = cursor.fetchall()
+        cursor.execute(
+            "SELECT trial_used, paid_until FROM subscriptions WHERE telegram_user_id = %s",
+            (user_id,),
+        )
+        access = cursor.fetchone() or (0, None)
+        has_paid_access = bool(access[1] and access[1] > datetime.now(timezone.utc))
+        if has_paid_access:
+            cursor.execute(
+                f"""
+                SELECT id, symbol, side, confidence, price, entry, stop, tp1, tp2, created_at
+                FROM signals WHERE {usdt_only} ORDER BY created_at DESC LIMIT 30
+                """
+            )
+            rows = cursor.fetchall()
+        else:
+            cursor.execute(
+                f"""
+                SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
+                       s.stop, s.tp1, s.tp2, s.created_at
+                FROM signals s
+                JOIN user_signal_access a ON a.signal_id = s.id
+                WHERE a.telegram_user_id = %s AND {usdt_only_aliased}
+                ORDER BY s.created_at DESC LIMIT %s
+                """,
+                (user_id, FREE_TRIAL_SIGNALS),
+            )
+            rows = cursor.fetchall()
+            # Existing users predate per-user signal grants. Seed their already-used trial once.
+            if not rows and int(access[0] or 0) > 0:
+                cursor.execute(
+                    f"SELECT id FROM signals WHERE {usdt_only} ORDER BY created_at DESC LIMIT %s",
+                    (min(int(access[0]), FREE_TRIAL_SIGNALS),),
+                )
+                for (signal_id,) in cursor.fetchall():
+                    cursor.execute(
+                        """
+                        INSERT INTO user_signal_access (telegram_user_id, signal_id)
+                        VALUES (%s, %s) ON CONFLICT DO NOTHING
+                        """,
+                        (user_id, signal_id),
+                    )
+                cursor.execute(
+                    f"""
+                    SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
+                           s.stop, s.tp1, s.tp2, s.created_at
+                    FROM signals s
+                    JOIN user_signal_access a ON a.signal_id = s.id
+                    WHERE a.telegram_user_id = %s AND {usdt_only_aliased}
+                    ORDER BY s.created_at DESC LIMIT %s
+                    """,
+                    (user_id, FREE_TRIAL_SIGNALS),
+                )
+                rows = cursor.fetchall()
+        connection.commit()
     return [
-        {"id": row[0], "symbol": row[1], "side": row[2], "confidence": float(row[3]),
+        {"id": row[0], "symbol": normalize_usdt_symbol(row[1]), "side": row[2], "confidence": float(row[3]),
          "price": float(row[4]) if row[4] is not None else None,
          "entry": float(row[5]) if row[5] is not None else None,
          "stop": float(row[6]) if row[6] is not None else None,

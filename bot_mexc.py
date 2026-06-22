@@ -234,6 +234,9 @@ def _parse_plan_request(text: str, settings: dict):
         symbol = norm_sym(parts[0])
         kv = _parse_kv(parts[1:])
 
+    if not _is_usdt_pair(symbol):
+        raise ValueError("only USDT quote pairs are supported")
+
     if set(kv) - {"risk", "lev", "margin"}:
         raise ValueError("unsupported plan parameter")
 
@@ -939,8 +942,14 @@ _last_plan_1h_block: int = -1  # сканируем каждый час, пов�
 _JUNK_SUFFIXES = ("STOCK", "BULL", "BEAR", "ETF", "UP", "DOWN", "3L", "3S")
 
 def _is_junk_symbol(symbol: str) -> bool:
-    base = symbol.replace("_USDT", "").upper()
+    market = str(symbol or "").upper().strip().split(":", 1)[0]
+    base = market.replace("/", "_").replace("-", "_").removesuffix("_USDT")
     return any(base.endswith(s) for s in _JUNK_SUFFIXES)
+
+def _is_usdt_pair(symbol: str) -> bool:
+    market = str(symbol or "").upper().strip().split(":", 1)[0]
+    normalized = market.replace("/", "_").replace("-", "_")
+    return normalized.endswith("_USDT")
 
 def _fmt_price(p) -> str:
     if p is None or p == "?":
@@ -1052,7 +1061,7 @@ async def market_scanner_loop():
     while True:
         try:
             now = time.time()
-            symbols = await exchange.get_top_pairs()
+            symbols = [symbol for symbol in await exchange.get_top_pairs() if _is_usdt_pair(symbol)]
 
             for i, symbol in enumerate(symbols):
                 target_symbols = [f"{coin}/USDT" for coin in TARGET_COINS]
@@ -1154,11 +1163,12 @@ async def plan_scanner_loop():
 
                         if conf < SCAN_CFG["min_confidence"] or plan.get("side") == "skip":
                             continue
-                        if _is_junk_symbol(symbol):
+                        if not _is_usdt_pair(symbol) or _is_junk_symbol(symbol):
                             continue
                         if not st.should_send_alert(symbol, side, conf):
                             continue
 
+                        signal_id = st.save_signal(plan, symbol, side, conf)
                         for chat_id in list(notifier.active_users):
                             try:
                                 user_id = int(chat_id)
@@ -1182,9 +1192,10 @@ async def plan_scanner_loop():
                                 leverage=settings.get("lev", TRADE_CFG["default_lev"]),
                                 uses_reference_deposit=uses_reference,
                             )
-                            await notifier.send_message_to_user(chat_id, alert)
+                            delivered = await notifier.send_message_to_user(chat_id, alert)
+                            if delivered and signal_id:
+                                st.grant_signal_access(user_id, signal_id)
                         st.mark_sent(symbol, side, conf)
-                        st.save_signal(plan, symbol, side, conf)
                         sent += 1
                         await asyncio.sleep(0.5)
                     print(f"[PlanScanner] Done: {len(results)} scanned, {sent} alerts sent")
