@@ -3,6 +3,11 @@ import os
 import time
 from typing import Dict, Tuple
 
+try:
+    import psycopg
+except ImportError:
+    psycopg = None
+
 
 class AccessManager:
     def __init__(
@@ -20,6 +25,7 @@ class AccessManager:
         self.payment_address = payment_address
         self.payment_amount = payment_amount
         self.payment_network = payment_network
+        self.database_url = os.getenv("DATABASE_URL", "")
 
     def ensure_user(self, chat_id: str):
         state = self._load()
@@ -138,6 +144,21 @@ class AccessManager:
         )
 
     def _load(self) -> Dict:
+        if self.database_url and psycopg:
+            try:
+                with psycopg.connect(self.database_url) as connection:
+                    connection.execute(
+                        "CREATE TABLE IF NOT EXISTS access_state (id INTEGER PRIMARY KEY, data JSONB NOT NULL)"
+                    )
+                    connection.execute(
+                        "INSERT INTO access_state (id, data) VALUES (1, %s) ON CONFLICT DO NOTHING",
+                        (json.dumps({"users": {}}),),
+                    )
+                    row = connection.execute("SELECT data FROM access_state WHERE id = 1").fetchone()
+                    connection.commit()
+                    return row[0] if isinstance(row[0], dict) else json.loads(row[0])
+            except Exception as e:
+                print(f"[AccessManager] database read failed: {e}")
         if not os.path.exists(self.state_file):
             return {"users": {}}
         try:
@@ -150,6 +171,46 @@ class AccessManager:
             return {"users": {}}
 
     def _save(self, state: Dict):
+        if self.database_url and psycopg:
+            try:
+                with psycopg.connect(self.database_url) as connection:
+                    connection.execute(
+                        "CREATE TABLE IF NOT EXISTS access_state (id INTEGER PRIMARY KEY, data JSONB NOT NULL)"
+                    )
+                    connection.execute(
+                        "UPDATE access_state SET data = %s WHERE id = 1",
+                        (json.dumps(state),),
+                    )
+                    connection.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS subscriptions (
+                            telegram_user_id BIGINT PRIMARY KEY, trial_used INTEGER NOT NULL DEFAULT 0,
+                            paid_until TIMESTAMPTZ, payment_status TEXT,
+                            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                        )
+                        """
+                    )
+                    for chat_id, user in state.get("users", {}).items():
+                        if not str(chat_id).lstrip("-").isdigit():
+                            continue
+                        claim = user.get("last_payment_claim") or {}
+                        connection.execute(
+                            """
+                            INSERT INTO subscriptions (telegram_user_id, trial_used, paid_until, payment_status)
+                            VALUES (%s, %s, TO_TIMESTAMP(%s), %s)
+                            ON CONFLICT (telegram_user_id) DO UPDATE SET
+                                trial_used = EXCLUDED.trial_used,
+                                paid_until = EXCLUDED.paid_until,
+                                payment_status = EXCLUDED.payment_status,
+                                updated_at = NOW()
+                            """,
+                            (int(chat_id), user.get("trial_used", 0), user.get("paid_until") or 0,
+                             claim.get("status")),
+                        )
+                    connection.commit()
+                    return
+            except Exception as e:
+                print(f"[AccessManager] database write failed: {e}")
         try:
             with open(self.state_file, "w") as f:
                 json.dump(state, f, indent=2)

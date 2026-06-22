@@ -14,7 +14,7 @@ from aiogram import Bot, Dispatcher, types, Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 
 # ── старые модули ──
 from mexc.exchange_client_mexc import ExchangeClient
@@ -33,7 +33,7 @@ from core.config import (
     MEXC_LISTING_CHECK_INTERVAL, MEXC_NEW_LISTINGS_URL,
     FREE_TRIAL_SIGNALS, PAID_ACCESS_HOURS,
     USDT_PAYMENT_ADDRESS, USDT_PAYMENT_AMOUNT, USDT_PAYMENT_NETWORK,
-    ACCESS_STATE_FILE, USER_REGISTRY_FILE, TRONGRID_API_KEY,
+    ACCESS_STATE_FILE, USER_REGISTRY_FILE, TRONGRID_API_KEY, MINI_APP_URL,
 )
 from core.tron_payment import TronPaymentVerifier
 
@@ -183,11 +183,19 @@ def get_lang(user_id: int) -> str:
 
 def _lang_keyboard(lang: str = "en") -> InlineKeyboardMarkup:
     btns = [InlineKeyboardButton(text=lbl, callback_data=cb) for lbl, cb in LANG_BUTTONS]
-    return InlineKeyboardMarkup(inline_keyboard=[
+    rows = [
         btns[:3],
         btns[3:],
         [InlineKeyboardButton(text=_t(lang, "deposit_button"), callback_data="set_deposit")],
-    ])
+    ]
+    if MINI_APP_URL:
+        rows.append([
+            InlineKeyboardButton(
+                text=_t(lang, "mini_app_button"),
+                web_app=WebAppInfo(url=MINI_APP_URL),
+            )
+        ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def _deposit_keyboard(lang: str) -> InlineKeyboardMarkup:
@@ -1160,6 +1168,7 @@ async def plan_scanner_loop():
                             )
                             await notifier.send_message_to_user(chat_id, alert)
                         st.mark_sent(symbol, side, conf)
+                        st.save_signal(plan, symbol, side, conf)
                         sent += 1
                         await asyncio.sleep(0.5)
                     print(f"[PlanScanner] Done: {len(results)} scanned, {sent} alerts sent")

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111310">
+  <title>UCB Trading</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+  <script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-lockup">
+        <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div><strong>UCB</strong><small>TRADING DESK</small></div>
+      </div>
+      <div class="top-actions">
+        <label class="sr-only" for="language">Language</label>
+        <select id="language" class="language-select" aria-label="Language">
+          <option value="en">EN</option><option value="ru">RU</option><option value="de">DE</option>
+          <option value="fr">FR</option><option value="es">ES</option>
+        </select>
+        <button class="icon-button" id="refresh" aria-label="Refresh" title="Refresh"><i data-lucide="refresh-cw"></i></button>
+      </div>
+    </header>
+
+    <main>
+      <section class="view active" id="overview-view" data-view="overview">
+        <div class="page-heading">
+          <div><p class="eyebrow" data-i18n="workspace">PRIVATE WORKSPACE</p><h1><span data-i18n="hello">Hello</span>, <span id="first-name">Trader</span></h1></div>
+          <div class="market-state"><span></span><b data-i18n="marketLive">MEXC LIVE</b></div>
+        </div>
+
+        <div class="metrics-grid">
+          <article class="metric"><span data-i18n="deposit">Deposit</span><strong id="deposit-metric">—</strong><small>USDT</small></article>
+          <article class="metric"><span data-i18n="riskTrade">Risk / trade</span><strong id="risk-metric">—</strong><small>%</small></article>
+          <article class="metric"><span data-i18n="leverage">Leverage</span><strong id="leverage-metric">—</strong><small data-i18n="cross">CROSS</small></article>
+          <article class="metric subscription"><span data-i18n="access">Access</span><strong id="access-metric">—</strong><small id="access-detail"></small></article>
+        </div>
+
+        <section class="chart-section">
+          <div class="section-toolbar">
+            <div class="symbol-title"><img id="coin-icon" src="https://assets.coincap.io/assets/icons/btc@2x.png" alt=""><div><strong id="chart-symbol">BTC / USDT</strong><span id="chart-price">—</span></div></div>
+            <div class="segmented" id="symbol-picker" aria-label="Market">
+              <button class="selected" data-symbol="BTC_USDT">BTC</button><button data-symbol="ETH_USDT">ETH</button><button data-symbol="SOL_USDT">SOL</button>
+            </div>
+          </div>
+          <div id="chart" aria-label="Price chart"></div>
+        </section>
+
+        <section class="signals-preview">
+          <div class="section-heading"><div><p class="eyebrow" data-i18n="scanner">MARKET SCANNER</p><h2 data-i18n="latestSignals">Latest signals</h2></div><button class="text-button" data-go="signals"><span data-i18n="viewAll">View all</span><i data-lucide="arrow-right"></i></button></div>
+          <div id="signal-preview" class="signal-list"></div>
+        </section>
+      </section>
+
+      <section class="view" id="signals-view" data-view="signals">
+        <div class="page-heading"><div><p class="eyebrow" data-i18n="scanner">MARKET SCANNER</p><h1 data-i18n="signalHistory">Signal history</h1></div></div>
+        <div class="filter-row"><button class="filter selected" data-filter="ALL" data-i18n="all">All</button><button class="filter" data-filter="LONG">LONG</button><button class="filter" data-filter="SHORT">SHORT</button></div>
+        <div id="signal-history" class="signal-list full"></div>
+      </section>
+
+      <section class="view" id="settings-view" data-view="settings">
+        <div class="page-heading"><div><p class="eyebrow" data-i18n="riskProfile">RISK PROFILE</p><h1 data-i18n="settings">Settings</h1></div></div>
+        <form id="settings-form" class="settings-form">
+          <label><span data-i18n="depositUsdt">Deposit, USDT</span><input id="deposit-input" type="number" min="1" step="0.01" required></label>
+          <label><span data-i18n="riskPercent">Risk per trade, %</span><input id="risk-input" type="number" min="0.1" max="5" step="0.1" required></label>
+          <label><span data-i18n="leverageX">Leverage</span><input id="leverage-input" type="number" min="1" max="100" step="1" required></label>
+          <fieldset><legend data-i18n="marginMode">Margin mode</legend><div class="segmented wide"><label><input type="radio" name="margin" value="cross" checked><span data-i18n="cross">Cross</span></label><label><input type="radio" name="margin" value="isolated"><span data-i18n="isolated">Isolated</span></label></div></fieldset>
+          <button class="primary-button" type="submit"><i data-lucide="save"></i><span data-i18n="saveSettings">Save settings</span></button>
+          <p class="form-status" id="form-status" role="status"></p>
+        </form>
+        <section class="subscription-panel"><div><p class="eyebrow" data-i18n="subscription">SUBSCRIPTION</p><h2 data-i18n="monthlyAccess">Monthly access</h2><p data-i18n="subscriptionCopy">Automatic signals, scanner and full position plans.</p></div><div class="price"><strong>29.99</strong><span>USDT / 30d</span></div><button class="secondary-button" id="payment-button"><i data-lucide="wallet"></i><span data-i18n="paymentInstructions">Payment instructions</span></button></section>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Primary">
+      <button class="active" data-target="overview"><i data-lucide="layout-dashboard"></i><span data-i18n="overview">Overview</span></button>
+      <button data-target="signals"><i data-lucide="radio-tower"></i><span data-i18n="signals">Signals</span></button>
+      <button data-target="settings"><i data-lucide="sliders-horizontal"></i><span data-i18n="settings">Settings</span></button>
+    </nav>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

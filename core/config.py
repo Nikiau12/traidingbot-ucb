@@ -58,6 +58,7 @@ USDT_PAYMENT_NETWORK = os.getenv("USDT_PAYMENT_NETWORK", "TRC20")
 ACCESS_STATE_FILE = os.getenv("ACCESS_STATE_FILE", "user_access.json")
 USER_REGISTRY_FILE = os.getenv("USER_REGISTRY_FILE", "users.json")
 TRONGRID_API_KEY = os.getenv("TRONGRID_API_KEY", "")
+MINI_APP_URL = os.getenv("MINI_APP_URL", "")
 
 # SMC Analyzer parameters
 SMC_LOOKBACK_PERIOD = 200 # Candles to look back for structure

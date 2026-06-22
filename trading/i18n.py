@@ -23,6 +23,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "lang_set": "✅ Язык установлен: <b>Русский</b>\n\nПечатай /help — покажу все команды.",
         "choose_lang": "🌐 Выбери язык:",
         "deposit_button": "💰 Указать депозит",
+        "mini_app_button": "📊 Открыть панель",
         "deposit_start_hint": (
             "Укажи депозит сейчас, чтобы бот рассчитывал размер позиции и риск именно для тебя. "
             "До этого планы, сканирование и автоматические сигналы недоступны."
@@ -172,6 +173,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "lang_set": "✅ Language set: <b>English</b>\n\nType /help to see all commands.",
         "choose_lang": "🌐 Choose your language:",
         "deposit_button": "💰 Set deposit",
+        "mini_app_button": "📊 Open dashboard",
         "deposit_start_hint": (
             "Set your deposit now so position size and risk can be calculated for you. "
             "The deposit is required before plans, scans and automatic signals are available."
@@ -320,6 +322,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "lang_set": "✅ Sprache gesetzt: <b>Deutsch</b>\n\nTippe /help für alle Befehle.",
         "choose_lang": "🌐 Wähle deine Sprache:",
         "deposit_button": "💰 Kapital festlegen",
+        "mini_app_button": "📊 Dashboard öffnen",
         "deposit_start_hint": (
             "Lege dein Kapital jetzt fest, damit Positionsgröße und Risiko für dich berechnet werden. "
             "Pläne, Scans und automatische Signale sind erst danach verfügbar."
@@ -468,6 +471,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "lang_set": "✅ Langue définie : <b>Français</b>\n\nTape /help pour voir toutes les commandes.",
         "choose_lang": "🌐 Choisis ta langue :",
         "deposit_button": "💰 Définir le dépôt",
+        "mini_app_button": "📊 Ouvrir le tableau de bord",
         "deposit_start_hint": (
             "Indique ton dépôt pour calculer la taille de position et le risque selon ton capital. "
             "Les plans, scans et signaux automatiques seront disponibles ensuite."
@@ -616,6 +620,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "lang_set": "✅ Idioma establecido: <b>Español</b>\n\nEscribe /help para ver todos los comandos.",
         "choose_lang": "🌐 Elige tu idioma:",
         "deposit_button": "💰 Indicar depósito",
+        "mini_app_button": "📊 Abrir panel",
         "deposit_start_hint": (
             "Indica tu depósito para calcular el tamaño de posición y el riesgo según tu capital. "
             "Los planes, escaneos y señales automáticas estarán disponibles después."
