@@ -313,7 +313,11 @@ async def cmd_start(message: types.Message, state: FSMContext):
     if not _has_saved_deposit(message.from_user.id):
         notifier.active_users.discard(chat_id)
         await state.set_state(DepositSetup.waiting_for_amount)
-        await message.reply(ENGLISH_START_MESSAGE, parse_mode="HTML")
+        await message.reply(
+            ENGLISH_START_MESSAGE,
+            parse_mode="HTML",
+            reply_markup=_lang_keyboard("en"),
+        )
         return
 
     notifier.active_users.add(chat_id)
