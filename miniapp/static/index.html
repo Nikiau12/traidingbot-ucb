@@ -83,7 +83,7 @@
       <section class="view signal-detail-view" id="signal-detail-view" data-view="signal-detail">
         <button class="back-button" id="signal-back"><i data-lucide="arrow-left"></i><span data-i18n="backToSignals">Back to signals</span></button>
         <div class="detail-heading">
-          <div class="detail-identity"><span class="coin-dot large" id="detail-coin">BT</span><div><p class="eyebrow" data-i18n="tradeSetup">TRADE SETUP</p><h1 id="detail-symbol">BTC / USDT</h1><small id="detail-date"></small></div></div>
+          <div class="detail-identity"><span class="coin-dot large" id="detail-coin"><span class="coin-fallback">BT</span><img src="https://assets.coincap.io/assets/icons/btc@2x.png" alt="" loading="lazy"></span><div><p class="eyebrow" data-i18n="tradeSetup">TRADE SETUP</p><h1 id="detail-symbol">BTC / USDT</h1><small id="detail-date"></small></div></div>
           <div class="detail-status"><span class="side" id="detail-side">LONG</span><b id="detail-confidence">78%</b><small data-i18n="confidence">Confidence</small></div>
         </div>
 
@@ -126,7 +126,7 @@
 
     <nav class="bottom-nav" aria-label="Primary">
       <button class="active" data-target="overview"><i data-lucide="layout-dashboard"></i><span data-i18n="overview">Overview</span></button>
-      <button data-target="signals"><i data-lucide="radio-tower"></i><span data-i18n="signals">Signals</span></button>
+      <button data-target="signals"><i data-lucide="chart-candlestick"></i><span data-i18n="signals">Signals</span></button>
       <button data-target="settings"><i data-lucide="sliders-horizontal"></i><span data-i18n="settings">Settings</span></button>
     </nav>
   </div>

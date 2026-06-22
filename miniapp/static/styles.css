@@ -8,6 +8,7 @@
 .signal-card+.signal-card{margin-top:8px;border-top:1px solid var(--line)}
 .signal-card header{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:16px;padding-bottom:13px;border-bottom:1px solid var(--line)}
 .signal-card .signal-symbol{min-width:0}.signal-card .coin-dot{width:30px;height:30px;flex:0 0 auto}
+.coin-dot{position:relative;overflow:hidden}.coin-dot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#252a24}.coin-dot.no-image img{display:none}.coin-fallback{line-height:1}
 .signal-card .signal-symbol strong{display:block}.signal-confidence{text-align:right}
 .signal-confidence span,.trade-levels span,.position-plan span{display:block;color:var(--muted);font-size:9px;margin-bottom:5px}
 .signal-confidence b,.trade-levels b,.position-plan b{font:600 11px "IBM Plex Mono"}

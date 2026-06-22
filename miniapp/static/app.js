@@ -19,6 +19,24 @@ const tr=key=>translations[language]?.[key]||translations.en[key]||key;
 const fmt=value=>value==null||!Number.isFinite(Number(value))?'—':Number(value).toLocaleString(language,{maximumFractionDigits:Math.abs(Number(value))<1?8:2});
 const displaySymbol=symbol=>(symbol||'').replace('_',' / ');
 const isUsdtPair=symbol=>String(symbol||'').toUpperCase().split(':',1)[0].replace(/[/-]/g,'_').endsWith('_USDT');
+const coinBase=symbol=>String(symbol||'').toUpperCase().split('_',1)[0];
+const coinIconUrl=symbol=>`https://assets.coincap.io/assets/icons/${coinBase(symbol).toLowerCase()}@2x.png`;
+
+function coinIconMarkup(symbol){
+  const base=coinBase(symbol);
+  return `<span class="coin-fallback">${base.slice(0,2)}</span><img src="${coinIconUrl(symbol)}" alt="${base}" loading="lazy">`;
+}
+
+function hydrateCoinIcons(scope=document){
+  scope.querySelectorAll('.coin-dot img').forEach(image=>{
+    const avatar=image.closest('.coin-dot');
+    const markLoaded=()=>avatar.classList.remove('no-image');
+    const markMissing=()=>avatar.classList.add('no-image');
+    image.addEventListener('load',markLoaded,{once:true});
+    image.addEventListener('error',markMissing,{once:true});
+    if(image.complete)(image.naturalWidth?markLoaded:markMissing)();
+  });
+}
 
 function applyLanguage(){
   document.documentElement.lang=language;
@@ -63,13 +81,14 @@ function signalCard(signal){
   const side=(signal.side||'').toUpperCase();
   const date=new Date(signal.created_at);
   const metrics=signalMetrics(signal);
-  return `<button type="button" class="signal-card" data-signal-id="${signal.id}" data-side="${side}" aria-label="${displaySymbol(signal.symbol)} ${side}"><header><div class="signal-symbol"><span class="coin-dot">${signal.symbol.slice(0,2)}</span><div><strong>${displaySymbol(signal.symbol)}</strong><small>${date.toLocaleString(language,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</small></div></div><span class="side ${side.toLowerCase()}">${side}</span><div class="signal-confidence"><span>${tr('confidence')}</span><b>${Math.round(signal.confidence*100)}%</b></div></header><div class="trade-levels"><div><span>${tr('currentPrice')}</span><b>${fmt(signal.price)}</b></div><div><span>${tr('entry')}</span><b>${fmt(signal.entry)}</b></div><div><span>${tr('stop')}</span><b>${fmt(signal.stop)}</b><small>${metrics.stopPct.toFixed(1)}%</small></div><div><span>${tr('tp1')}</span><b>${fmt(signal.tp1)}</b></div><div><span>${tr('tp2')}</span><b>${fmt(signal.tp2)}</b></div></div><div class="position-plan"><div><span>${tr('deposit')}</span><b>${fmt(profile?.deposit)} USDT</b></div><div><span>${tr('positionSize')}</span><b>${fmt(metrics.position)} USDT</b></div><div><span>${tr('marginRequired')} x${fmt(metrics.leverage)}</span><b>${fmt(metrics.margin)} USDT</b></div><div><span>${tr('stopRisk')} (${fmt(profile?.risk_pct)}%)</span><b>${fmt(metrics.riskUsdt)} USDT</b></div></div><div class="confidence"><i style="width:${signal.confidence*100}%"></i></div><span class="card-open"><i data-lucide="chevron-right"></i></span></button>`;
+  return `<button type="button" class="signal-card" data-signal-id="${signal.id}" data-side="${side}" aria-label="${displaySymbol(signal.symbol)} ${side}"><header><div class="signal-symbol"><span class="coin-dot">${coinIconMarkup(signal.symbol)}</span><div><strong>${displaySymbol(signal.symbol)}</strong><small>${date.toLocaleString(language,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</small></div></div><span class="side ${side.toLowerCase()}">${side}</span><div class="signal-confidence"><span>${tr('confidence')}</span><b>${Math.round(signal.confidence*100)}%</b></div></header><div class="trade-levels"><div><span>${tr('currentPrice')}</span><b>${fmt(signal.price)}</b></div><div><span>${tr('entry')}</span><b>${fmt(signal.entry)}</b></div><div><span>${tr('stop')}</span><b>${fmt(signal.stop)}</b><small>${metrics.stopPct.toFixed(1)}%</small></div><div><span>${tr('tp1')}</span><b>${fmt(signal.tp1)}</b></div><div><span>${tr('tp2')}</span><b>${fmt(signal.tp2)}</b></div></div><div class="position-plan"><div><span>${tr('deposit')}</span><b>${fmt(profile?.deposit)} USDT</b></div><div><span>${tr('positionSize')}</span><b>${fmt(metrics.position)} USDT</b></div><div><span>${tr('marginRequired')} x${fmt(metrics.leverage)}</span><b>${fmt(metrics.margin)} USDT</b></div><div><span>${tr('stopRisk')} (${fmt(profile?.risk_pct)}%)</span><b>${fmt(metrics.riskUsdt)} USDT</b></div></div><div class="confidence"><i style="width:${signal.confidence*100}%"></i></div><span class="card-open"><i data-lucide="chevron-right"></i></span></button>`;
 }
 
 function renderSignals(){
   const filtered=signals.filter(signal=>activeFilter==='ALL'||signal.side===activeFilter);
   $('#signal-preview').innerHTML=signals.length?signals.slice(0,3).map(signalCard).join(''):`<div class="empty-state">${tr('noSignals')}</div>`;
   $('#signal-history').innerHTML=filtered.length?filtered.map(signalCard).join(''):`<div class="empty-state">${tr('noSignals')}</div>`;
+  hydrateCoinIcons();
   lucide.createIcons();
 }
 
@@ -137,7 +156,8 @@ function detailMetric(label,value,accent=''){
 function renderSignalDetail(signal){
   const side=(signal.side||'').toUpperCase();
   const metrics=signalMetrics(signal);
-  $('#detail-coin').textContent=signal.symbol.slice(0,2);
+  $('#detail-coin').innerHTML=coinIconMarkup(signal.symbol);
+  hydrateCoinIcons($('#detail-coin'));
   $('#detail-symbol').textContent=displaySymbol(signal.symbol);
   $('#detail-date').textContent=new Date(signal.created_at).toLocaleString(language,{dateStyle:'medium',timeStyle:'short'});
   $('#detail-side').textContent=side;
