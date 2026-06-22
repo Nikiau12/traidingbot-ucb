@@ -324,7 +324,7 @@ def signals(x_telegram_init_data: str = Header(default="")):
     get_user(x_telegram_init_data)
     if not DATABASE_URL:
         return [
-            {"id": 3, "symbol": "BTC_USDT", "side": "LONG", "confidence": 0.78, "price": 104400, "entry": 104250, "stop": 101860, "tp1": 107400, "tp2": 110200, "created_at": "2026-06-22T08:25:00Z"},
+            {"id": 3, "symbol": "BTC_USDT", "side": "LONG", "confidence": 0.78, "price": 64120, "entry": 64000, "stop": 62800, "tp1": 65500, "tp2": 67000, "created_at": "2026-06-22T08:25:00Z"},
             {"id": 2, "symbol": "SOL_USDT", "side": "SHORT", "confidence": 0.69, "price": 147.9, "entry": 148.2, "stop": 152.6, "tp1": 141.5, "tp2": 136.8, "created_at": "2026-06-22T07:05:00Z"},
             {"id": 1, "symbol": "ETH_USDT", "side": "LONG", "confidence": 0.66, "price": 3551, "entry": 3540, "stop": 3448, "tp1": 3695, "tp2": 3820, "created_at": "2026-06-22T05:05:00Z"},
         ]
@@ -349,25 +349,36 @@ def signals(x_telegram_init_data: str = Header(default="")):
 
 
 @app.get("/api/market/{symbol}")
-def market(symbol: str, x_telegram_init_data: str = Header(default="")):
+def market(symbol: str, timeframe: str = "1h", x_telegram_init_data: str = Header(default="")):
     get_user(x_telegram_init_data)
     normalized = symbol.upper().replace("_", "")
     if not normalized.endswith("USDT") or not normalized.isalnum():
         raise HTTPException(422, "Invalid symbol")
+    intervals = {
+        "15m": ("Min15", 15 * 60),
+        "1h": ("Min60", 60 * 60),
+        "4h": ("Hour4", 4 * 60 * 60),
+        "1d": ("Day1", 24 * 60 * 60),
+    }
+    if timeframe not in intervals:
+        raise HTTPException(422, "Invalid timeframe")
+    mexc_interval, candle_seconds = intervals[timeframe]
     contract_symbol = normalized[:-4] + "_USDT"
     try:
         end = int(time.time())
         response = requests.get(
             f"https://contract.mexc.com/api/v1/contract/kline/{contract_symbol}",
-            params={"interval": "Min60", "start": end - 120 * 3600, "end": end},
+            params={"interval": mexc_interval, "start": end - 180 * candle_seconds, "end": end},
             timeout=10,
         )
         response.raise_for_status()
         data = response.json().get("data") or {}
+        volumes = data.get("vol") or data.get("volume") or []
         return [
             {"time": int(timestamp), "open": float(data["open"][index]),
              "high": float(data["high"][index]), "low": float(data["low"][index]),
-             "close": float(data["close"][index])}
+             "close": float(data["close"][index]),
+             "volume": float(volumes[index]) if index < len(volumes) else 0.0}
             for index, timestamp in enumerate(data.get("time", []))
         ]
     except (requests.RequestException, ValueError, TypeError, IndexError) as exc:

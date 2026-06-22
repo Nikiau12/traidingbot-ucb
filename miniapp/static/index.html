@@ -47,8 +47,13 @@
         <section class="chart-section">
           <div class="section-toolbar">
             <div class="symbol-title"><img id="coin-icon" src="https://assets.coincap.io/assets/icons/btc@2x.png" alt=""><div><strong id="chart-symbol">BTC / USDT</strong><span id="chart-price">—</span></div></div>
-            <div class="segmented" id="symbol-picker" aria-label="Market">
-              <button class="selected" data-symbol="BTC_USDT">BTC</button><button data-symbol="ETH_USDT">ETH</button><button data-symbol="SOL_USDT">SOL</button>
+            <div class="chart-options">
+              <div class="segmented" id="symbol-picker" aria-label="Market">
+                <button class="selected" data-symbol="BTC_USDT">BTC</button><button data-symbol="ETH_USDT">ETH</button><button data-symbol="SOL_USDT">SOL</button>
+              </div>
+              <div class="segmented timeframe-picker" id="overview-timeframe" aria-label="Timeframe">
+                <button data-timeframe="15m">15m</button><button class="selected" data-timeframe="1h">1h</button><button data-timeframe="4h">4h</button><button data-timeframe="1d">1d</button>
+              </div>
             </div>
           </div>
           <div id="chart" aria-label="Price chart"></div>
@@ -64,6 +69,36 @@
         <div class="page-heading"><div><p class="eyebrow" data-i18n="scanner">MARKET SCANNER</p><h1 data-i18n="signalHistory">Signal history</h1></div></div>
         <div class="filter-row"><button class="filter selected" data-filter="ALL" data-i18n="all">All</button><button class="filter" data-filter="LONG">LONG</button><button class="filter" data-filter="SHORT">SHORT</button></div>
         <div id="signal-history" class="signal-list full"></div>
+      </section>
+
+      <section class="view signal-detail-view" id="signal-detail-view" data-view="signal-detail">
+        <button class="back-button" id="signal-back"><i data-lucide="arrow-left"></i><span data-i18n="backToSignals">Back to signals</span></button>
+        <div class="detail-heading">
+          <div class="detail-identity"><span class="coin-dot large" id="detail-coin">BT</span><div><p class="eyebrow" data-i18n="tradeSetup">TRADE SETUP</p><h1 id="detail-symbol">BTC / USDT</h1><small id="detail-date"></small></div></div>
+          <div class="detail-status"><span class="side" id="detail-side">LONG</span><b id="detail-confidence">78%</b><small data-i18n="confidence">Confidence</small></div>
+        </div>
+
+        <section class="chart-section detail-chart-section">
+          <div class="detail-chart-toolbar">
+            <div><span data-i18n="livePrice">LIVE PRICE</span><strong id="detail-live-price">—</strong><small id="detail-price-change">—</small></div>
+            <div class="segmented timeframe-picker" id="detail-timeframe" aria-label="Signal timeframe">
+              <button data-timeframe="15m">15m</button><button class="selected" data-timeframe="1h">1h</button><button data-timeframe="4h">4h</button><button data-timeframe="1d">1d</button>
+            </div>
+          </div>
+          <div id="detail-chart" aria-label="Signal price chart"></div>
+          <div class="level-legend">
+            <span class="entry"><i></i>Entry</span><span class="stop"><i></i>Stop</span><span class="tp"><i></i>TP1 / TP2</span>
+          </div>
+        </section>
+
+        <section class="detail-section">
+          <div class="section-heading"><div><p class="eyebrow" data-i18n="signalLevels">SIGNAL LEVELS</p><h2 data-i18n="executionPlan">Execution plan</h2></div></div>
+          <div class="detail-levels" id="detail-levels"></div>
+        </section>
+        <section class="detail-section">
+          <div class="section-heading"><div><p class="eyebrow" data-i18n="personalSizing">PERSONAL SIZING</p><h2 data-i18n="positionPlan">Position plan</h2></div></div>
+          <div class="detail-position" id="detail-position"></div>
+        </section>
       </section>
 
       <section class="view" id="settings-view" data-view="settings">

@@ -22,3 +22,35 @@
   .trade-levels{grid-template-columns:repeat(2,1fr)}.trade-levels>div:first-child{grid-column:1/-1}
   .position-plan{grid-template-columns:1fr 1fr;padding:11px}
 }
+
+/* Market charts and signal detail */
+.chart-options{display:flex;align-items:center;gap:8px}.timeframe-picker button{min-width:38px}
+.chart-section{box-shadow:0 12px 28px rgba(0,0,0,.14)}
+#chart,#detail-chart{position:relative;background:#151815}
+.symbol-title span.negative,.negative{color:var(--red)!important}.positive{color:var(--green)!important}
+.signal-card{position:relative;width:100%;color:var(--text);font:inherit;text-align:left;border:0;appearance:none;transition:background .18s,border-color .18s}
+.signal-card:hover,.signal-card:focus-visible{background:#1d211d;outline:1px solid #465047;outline-offset:-1px}
+.signal-card:active{background:#222722}.card-open{position:absolute;right:7px;top:50%;transform:translateY(-50%);color:#657066;opacity:0;transition:opacity .18s}
+.card-open svg{width:16px}.signal-card:hover .card-open,.signal-card:focus-visible .card-open{opacity:1}
+.back-button{display:inline-flex;align-items:center;gap:7px;padding:0;margin:0 0 22px;border:0;background:none;color:var(--cyan);font-size:12px}
+.back-button svg{width:16px}.detail-heading{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:20px}
+.detail-identity{display:flex;align-items:center;gap:13px;min-width:0}.coin-dot.large{width:42px;height:42px;font-size:12px;border:1px solid #3b443c}
+.detail-identity h1{margin:0;font-size:26px;line-height:1.1}.detail-identity small{display:block;color:var(--muted);font-size:10px;margin-top:6px}
+.detail-status{min-width:92px;text-align:right}.detail-status .side{display:block;font-size:12px;margin-bottom:5px}.detail-status b{font:600 22px "IBM Plex Mono"}.detail-status small{display:block;color:var(--muted);font-size:9px;margin-top:3px}
+.detail-chart-section{margin-bottom:28px}.detail-chart-toolbar{min-height:66px;padding:11px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:16px}
+.detail-chart-toolbar>div:first-child>span{display:block;color:var(--muted);font:600 8px "IBM Plex Mono"}.detail-chart-toolbar strong{display:inline-block;font:600 18px "IBM Plex Mono";margin-top:5px}
+.detail-chart-toolbar small{margin-left:9px;font:600 10px "IBM Plex Mono"}.level-legend{min-height:36px;padding:0 14px;border-top:1px solid var(--line);display:flex;align-items:center;gap:18px;color:var(--muted);font:500 9px "IBM Plex Mono"}
+.level-legend span{display:flex;align-items:center;gap:6px}.level-legend i{display:block;width:15px;height:2px;background:var(--cyan)}.level-legend .stop i{background:var(--red)}.level-legend .tp i{background:var(--green)}
+.detail-section{margin-bottom:26px}.detail-levels,.detail-position{display:grid;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.detail-levels{grid-template-columns:repeat(4,1fr)}.detail-position{grid-template-columns:repeat(4,1fr)}
+.detail-metric{min-width:0;padding:16px 14px;border-right:1px solid var(--line)}.detail-metric:last-child{border-right:0}
+.detail-metric span{display:block;color:var(--muted);font-size:10px;margin-bottom:9px}.detail-metric strong{font:600 14px "IBM Plex Mono"}
+.detail-metric.entry strong{color:var(--cyan)}.detail-metric.stop strong,.detail-metric.risk strong{color:var(--red)}.detail-metric.tp strong{color:var(--green)}
+
+@media(max-width:680px){
+  .chart-options{width:100%;flex-direction:column;align-items:stretch}.chart-options .segmented{width:100%}
+  .card-open{display:none}.detail-heading{align-items:flex-start}.detail-identity h1{font-size:21px}.detail-status b{font-size:18px}
+  .detail-chart-toolbar{align-items:flex-start;flex-direction:column}.detail-chart-toolbar .segmented{width:100%}
+  .level-legend{gap:12px;justify-content:space-between}.detail-levels,.detail-position{grid-template-columns:1fr 1fr}
+  .detail-metric{border-bottom:1px solid var(--line)}.detail-metric:nth-child(2n){border-right:0}.detail-metric:nth-last-child(-n+2){border-bottom:0}
+}
