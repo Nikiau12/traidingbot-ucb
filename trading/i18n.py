@@ -14,10 +14,10 @@ STRINGS: dict[str, dict[str, Any]] = {
     # ─────────────────────────── RUSSIAN ───────────────────────────
     "ru": {
         "welcome": (
-            "👋 Привет! Я <b>UCB_TRADING_BOT</b>\n\n"
-            "Твой торговый ассистент для MEXC Futures.\n"
-            "Анализирую рынок по 4h и 1d свечам, нахожу сетапы\n"
-            "и строю планы: вход, стоп, два TP и размер позиции.\n\n"
+            "👋 Добро пожаловать в <b>UCB_TRADING_BOT</b>\n\n"
+            "Я сканирую MEXC Futures 24/7, нахожу сильные сетапы и мгновенно рассчитываю "
+            "точку входа, стоп-лосс, два тейк-профита и размер позиции — "
+            "с учётом твоего депозита и риск-профиля.\n\n"
             "🌐 Выбери язык:"
         ),
         "lang_set": "✅ Язык установлен: <b>Русский</b>\n\nПечатай /help — покажу все команды.",
@@ -146,12 +146,14 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_regime_label":  "режим",
         "r_mid":           "midrange",
         "r_scenario":      "Сценарий",
+        "r_confidence":    "уверенность",
         "r_entry":         "🎯 entry",
         "r_stop":          "🛑 stop",
         "r_tp1":           "🥅 tp1",
         "r_tp2":           "🥅 tp2",
         "r_size":          "📦 Размер",
         "r_qty":           "кол-во",
+        "r_risk_label":    "риск",
         "r_margin_need":   "маржа",
         "r_levels":        "🧱 Уровни",
         "r_support":       "🟩 поддержка",
@@ -167,10 +169,10 @@ STRINGS: dict[str, dict[str, Any]] = {
     # ─────────────────────────── ENGLISH ───────────────────────────
     "en": {
         "welcome": (
-            "👋 Hello! I'm <b>UCB_TRADING_BOT</b>\n\n"
-            "Your trading assistant for MEXC Futures.\n"
-            "I analyse the market on 4h and 1d candles, find setups\n"
-            "and build plans: entry, stop-loss, two TPs and position size.\n\n"
+            "👋 Welcome to <b>UCB_TRADING_BOT</b>\n\n"
+            "I scan MEXC Futures 24/7, find high-probability setups and instantly calculate "
+            "entry, stop-loss, two take-profits and position size — "
+            "calibrated to your deposit and risk tolerance.\n\n"
             "🌐 Choose your language:"
         ),
         "lang_set": "✅ Language set: <b>English</b>\n\nType /help to see all commands.",
@@ -298,12 +300,14 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_regime_label":  "regime",
         "r_mid":           "midrange",
         "r_scenario":      "Scenario",
+        "r_confidence":    "confidence",
         "r_entry":         "🎯 entry",
         "r_stop":          "🛑 stop",
         "r_tp1":           "🥅 tp1",
         "r_tp2":           "🥅 tp2",
         "r_size":          "📦 Size",
         "r_qty":           "qty",
+        "r_risk_label":    "risk",
         "r_margin_need":   "margin",
         "r_levels":        "🧱 Levels",
         "r_support":       "🟩 support",
@@ -450,12 +454,14 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_regime_label":  "Regime",
         "r_mid":           "Midrange",
         "r_scenario":      "Szenario",
+        "r_confidence":    "Konfidenz",
         "r_entry":         "🎯 Einstieg",
         "r_stop":          "🛑 Stop",
         "r_tp1":           "🥅 TP1",
         "r_tp2":           "🥅 TP2",
         "r_size":          "📦 Größe",
         "r_qty":           "Menge",
+        "r_risk_label":    "Risiko",
         "r_margin_need":   "Margin",
         "r_levels":        "🧱 Levels",
         "r_support":       "🟩 Unterstützung",
@@ -602,12 +608,14 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_regime_label":  "régime",
         "r_mid":           "midrange",
         "r_scenario":      "Scénario",
+        "r_confidence":    "confiance",
         "r_entry":         "🎯 entrée",
         "r_stop":          "🛑 stop",
         "r_tp1":           "🥅 tp1",
         "r_tp2":           "🥅 tp2",
         "r_size":          "📦 Taille",
         "r_qty":           "qté",
+        "r_risk_label":    "risque",
         "r_margin_need":   "marge",
         "r_levels":        "🧱 Niveaux",
         "r_support":       "🟩 support",
@@ -754,12 +762,14 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_regime_label":  "régimen",
         "r_mid":           "midrange",
         "r_scenario":      "Escenario",
+        "r_confidence":    "confianza",
         "r_entry":         "🎯 entrada",
         "r_stop":          "🛑 stop",
         "r_tp1":           "🥅 tp1",
         "r_tp2":           "🥅 tp2",
         "r_size":          "📦 Tamaño",
         "r_qty":           "cant.",
+        "r_risk_label":    "riesgo",
         "r_margin_need":   "margen",
         "r_levels":        "🧱 Niveles",
         "r_support":       "🟩 soporte",
@@ -776,13 +786,20 @@ STRINGS: dict[str, dict[str, Any]] = {
 
 STRINGS["ru"].update({
     "payment_paywall": (
-        "🔒 <b>Бесплатные сигналы закончились</b>\n\n"
-        "Доступ на <b>{days} дней</b>: <b>{amount} USDT</b>.\n"
-        "Сеть: <b>{network}</b>\nКошелёк:\n<code>{wallet}</code>\n\n"
-        "После перевода отправь:\n<code>/paid TX_HASH</code>\n\n"
-        "Бот проверит транзакцию и автоматически активирует доступ."
+        "🔒 <b>Бесплатные сигналы использованы</b>\n\n"
+        "Продолжи торговать с ботом — подписка на <b>{days} дней</b> стоит <b>{amount} USDT</b>.\n\n"
+        "📋 <b>Как оплатить (3 шага):</b>\n"
+        "1️⃣ Открой любую биржу или кошелёк (Binance, OKX, Trust Wallet…)\n"
+        "2️⃣ Отправь <b>{amount} USDT</b> сетью <b>{network}</b> на адрес:\n"
+        "<code>{wallet}</code>\n"
+        "⚠️ Только сеть TRC20 (TRON) — не ERC20 и не BEP20!\n\n"
+        "3️⃣ Скопируй хеш транзакции (TX Hash / TXID) и отправь:\n"
+        "<code>/paid ВАШ_TX_HASH</code>\n\n"
+        "Бот проверит перевод и активирует доступ автоматически (~1–2 мин).\n\n"
+        "❓ Вопросы? /help"
     ),
     "trial_remaining": "🎁 Бесплатных сигналов осталось: <b>{count}</b>",
+    "trial_low_cta": "⚡ Скоро закончатся — оформи подписку: /subscribe",
     "payment_paid_usage": "Отправь хеш транзакции:\n<code>/paid TX_HASH</code>",
     "payment_checking": "🔎 Проверяю подтверждённую USDT TRC20-транзакцию...",
     "payment_tx_used": "❌ Этот TX-хеш уже использован для другой подписки.",
@@ -799,13 +816,20 @@ STRINGS["ru"].update({
 
 STRINGS["en"].update({
     "payment_paywall": (
-        "🔒 <b>Your free signals have ended</b>\n\n"
-        "Access for <b>{days} days</b>: <b>{amount} USDT</b>.\n"
-        "Network: <b>{network}</b>\nWallet:\n<code>{wallet}</code>\n\n"
-        "After payment, send:\n<code>/paid TX_HASH</code>\n\n"
-        "The bot will verify the transaction and activate access automatically."
+        "🔒 <b>Your free signals are used up</b>\n\n"
+        "Keep trading with the bot — <b>{days}-day access</b> costs <b>{amount} USDT</b>.\n\n"
+        "📋 <b>How to pay (3 steps):</b>\n"
+        "1️⃣ Open any exchange or wallet (Binance, OKX, Trust Wallet…)\n"
+        "2️⃣ Send <b>{amount} USDT</b> via <b>{network}</b> to:\n"
+        "<code>{wallet}</code>\n"
+        "⚠️ TRC20 (TRON) network only — not ERC20 or BEP20!\n\n"
+        "3️⃣ Copy the transaction hash (TX Hash / TXID) and send:\n"
+        "<code>/paid YOUR_TX_HASH</code>\n\n"
+        "The bot verifies the transfer and activates access automatically (~1–2 min).\n\n"
+        "❓ Questions? /help"
     ),
     "trial_remaining": "🎁 Free signals remaining: <b>{count}</b>",
+    "trial_low_cta": "⚡ Running out — subscribe now: /subscribe",
     "payment_paid_usage": "Send the transaction hash:\n<code>/paid TX_HASH</code>",
     "payment_checking": "🔎 Checking the confirmed USDT TRC20 transaction...",
     "payment_tx_used": "❌ This transaction hash has already been used for another subscription.",
@@ -829,6 +853,7 @@ STRINGS["de"].update({
         "Der Bot prüft die Transaktion und aktiviert den Zugang automatisch."
     ),
     "trial_remaining": "🎁 Verbleibende kostenlose Signale: <b>{count}</b>",
+    "trial_low_cta": "⚡ Bald aufgebraucht — jetzt abonnieren: /subscribe",
     "payment_paid_usage": "Sende den Transaktions-Hash:\n<code>/paid TX_HASH</code>",
     "payment_checking": "🔎 Bestätigte USDT-TRC20-Transaktion wird geprüft...",
     "payment_tx_used": "❌ Dieser Transaktions-Hash wurde bereits verwendet.",
@@ -852,6 +877,7 @@ STRINGS["fr"].update({
         "Le bot vérifiera la transaction et activera automatiquement l'accès."
     ),
     "trial_remaining": "🎁 Signaux gratuits restants : <b>{count}</b>",
+    "trial_low_cta": "⚡ Bientôt épuisés — abonnez-vous maintenant : /subscribe",
     "payment_paid_usage": "Envoie le hash de transaction :\n<code>/paid TX_HASH</code>",
     "payment_checking": "🔎 Vérification de la transaction USDT TRC20 confirmée...",
     "payment_tx_used": "❌ Ce hash de transaction a déjà été utilisé.",
@@ -875,6 +901,7 @@ STRINGS["es"].update({
         "El bot verificará la transacción y activará el acceso automáticamente."
     ),
     "trial_remaining": "🎁 Señales gratuitas restantes: <b>{count}</b>",
+    "trial_low_cta": "⚡ Casi agotadas — suscríbete ahora: /subscribe",
     "payment_paid_usage": "Envía el hash de la transacción:\n<code>/paid TX_HASH</code>",
     "payment_checking": "🔎 Verificando la transacción USDT TRC20 confirmada...",
     "payment_tx_used": "❌ Este hash de transacción ya fue utilizado.",

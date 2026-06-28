@@ -63,11 +63,13 @@ SPIKE_COOLDOWN = 4 * 3600
 SETUP_COOLDOWN = 8 * 3600
 SCAN_REFERENCE_DEPOSIT = 1000.0
 ENGLISH_START_MESSAGE = (
-    "👋 Hello! I'm <b>UCB_TRADING_BOT</b>\n\n"
-    "Your trading assistant for MEXC Futures. I analyse the market, find setups "
-    "and calculate entry, stop-loss, take-profits and position size.\n\n"
-    "💰 <b>Deposit required</b>\n"
-    "Before you can use the bot, send your current trading deposit as one number.\n\n"
+    "👋 Welcome to <b>UCB_TRADING_BOT</b>\n\n"
+    "I scan MEXC Futures 24/7, find high-probability setups and instantly calculate "
+    "your exact entry, stop-loss, two take-profits and position size — "
+    "all calibrated to your deposit and risk tolerance.\n\n"
+    f"🎁 <b>You get {FREE_TRIAL_SIGNALS} free signals</b> right now — no payment needed.\n\n"
+    "💰 <b>One step to start</b>\n"
+    "Send your trading deposit as a number so I can size positions correctly.\n\n"
     "Example: <code>5000</code>"
 )
 
@@ -148,7 +150,11 @@ def _payment_paywall(chat_id) -> str:
 
 
 def _trial_notice(chat_id, remaining: int) -> str:
-    return _t(get_lang(int(chat_id)), "trial_remaining", count=remaining)
+    lang = get_lang(int(chat_id))
+    base = _t(lang, "trial_remaining", count=remaining)
+    if remaining <= 2:
+        base += "\n" + _t(lang, "trial_low_cta")
+    return base
 
 
 notifier = Notifier(

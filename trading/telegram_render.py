@@ -20,6 +20,47 @@ def _fmt(x: Any) -> str:
         return "n/a"
 
 
+# Human-readable labels for internal reason codes
+_REASON_LABELS: Dict[str, str] = {
+    "ema_cross":          "EMA crossover",
+    "ema_bullish":        "Bullish EMA stack",
+    "ema_bearish":        "Bearish EMA stack",
+    "bos":                "Break of structure",
+    "bos_confirmed":      "BOS confirmed",
+    "choch":              "Change of character",
+    "support_hold":       "Support holding",
+    "resistance_hold":    "Resistance holding",
+    "support_break":      "Support broken",
+    "resistance_break":   "Resistance broken",
+    "ob_bullish":         "Bullish order block",
+    "ob_bearish":         "Bearish order block",
+    "fvg_bullish":        "Fair value gap (bullish)",
+    "fvg_bearish":        "Fair value gap (bearish)",
+    "trend_1d_up":        "Daily uptrend",
+    "trend_1d_down":      "Daily downtrend",
+    "trend_4h_up":        "4h uptrend",
+    "trend_4h_down":      "4h downtrend",
+    "volume_spike":       "Volume spike",
+    "rsi_oversold":       "RSI oversold",
+    "rsi_overbought":     "RSI overbought",
+    "atr_low":            "Low volatility",
+    "atr_high":           "High volatility",
+    "near_support":       "Price near support",
+    "near_resistance":    "Price near resistance",
+    "liquidity_grab":     "Liquidity sweep",
+    "mtf_aligned":        "Multi-timeframe aligned",
+    "mtf_conflict":       "Multi-timeframe conflict",
+    "high_conf":          "High confidence setup",
+}
+
+
+def _fmt_reasons(reasons: list, lang: str) -> str:
+    if not reasons:
+        return "—"
+    labels = [_REASON_LABELS.get(r, r.replace("_", " ")) for r in reasons]
+    return " · ".join(labels)
+
+
 def _tp(scn: Dict[str, Any], i: int) -> Optional[float]:
     tps = scn.get("tps") or []
     if len(tps) > i and isinstance(tps[i], dict):
@@ -78,11 +119,13 @@ def render_telegram_plan(
 
     reasons      = primary.get("reasons") or []
     short_reasons = reasons[-10:] if len(reasons) > 10 else reasons
-    why = " · ".join(short_reasons)
+    why = _fmt_reasons(short_reasons, L)
 
     cache_tag = f"  {_t(L, 'r_cache_warn')}" if used_cache else ""
     side_tag  = "🟥" if side == "SHORT" else "🟩" if side == "LONG" else "🧊"
     mid_s = _fmt(mid) if isinstance(mid, (int, float)) and math.isfinite(float(mid)) else "n/a"
+    # Confidence as percentage (consistent with Mini App display)
+    conf_pct = f"{conf * 100:.0f}%"
 
     return (
         f"{_t(L, 'r_context')}\n"
@@ -103,7 +146,7 @@ def render_telegram_plan(
         f"{_t(L, 'r_mid')}: <b>{mid_s}</b>\n\n"
 
         f"{side_tag} <b>{_t(L, 'r_scenario')}</b>\n"
-        f"✅ <b>{side}</b> (conf <b>{conf:.2f}</b>)\n"
+        f"✅ <b>{side}</b> — {_t(L, 'r_confidence')}: <b>{conf_pct}</b>\n"
         f"{_t(L, 'r_entry')}: <code>{_fmt(entry)}</code>\n"
         f"{_t(L, 'r_stop')}: <code>{_fmt(stop)}</code>\n"
         f"{_t(L, 'r_tp1')}: <code>{_fmt(tp1)}</code>\n"
@@ -111,7 +154,7 @@ def render_telegram_plan(
 
         f"{_t(L, 'r_size')}\n"
         f"• {_t(L, 'r_qty')}: <code>{_fmt(qty)}</code>\n"
-        f"• risk: <b>{_fmt(risk_usdt)}</b> USDT | "
+        f"• {_t(L, 'r_risk_label')}: <b>{_fmt(risk_usdt)}</b> USDT | "
         f"{_t(L, 'r_margin_need')}: <code>{_fmt(margin_need)}</code>\n\n"
 
         f"{_t(L, 'r_levels')}\n"
