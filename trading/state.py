@@ -335,13 +335,3 @@ def grant_signal_access(user_id: int, signal_id: int) -> None:
             connection.commit()
     except Exception as exc:
         print(f"[state] signal access write failed: {exc}")
-
-
-def is_whop_key_used(key: str) -> bool:
-    return key in _load().get("whop_keys", {})
-
-
-def mark_whop_key_used(key: str, chat_id: str) -> None:
-    state = _load()
-    state.setdefault("whop_keys", {})[key] = {"chat_id": chat_id, "ts": time.time()}
-    _save(state)
