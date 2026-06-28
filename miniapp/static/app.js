@@ -218,6 +218,20 @@ async function load(){
   }catch(error){showToast(error.message||'Connection error')}
 }
 
+async function refreshLiveData(){
+  if(document.hidden)return;
+  try{
+    [profile,signals]=await Promise.all([api('/api/me'),api('/api/signals')]);
+    signals=signals.filter(signal=>isUsdtPair(signal.symbol));
+    renderProfile();
+    renderSignals();
+    if(selectedSignal){
+      selectedSignal=signals.find(signal=>String(signal.id)===String(selectedSignal.id))||selectedSignal;
+      renderSignalDetail(selectedSignal);
+    }
+  }catch(error){}
+}
+
 document.querySelectorAll('.bottom-nav button').forEach(button=>button.addEventListener('click',()=>{selectedSignal=null;tg?.BackButton?.hide();showView(button.dataset.target)}));
 document.querySelectorAll('[data-go]').forEach(button=>button.addEventListener('click',()=>showView(button.dataset.go)));
 document.querySelectorAll('.filter').forEach(button=>button.addEventListener('click',()=>{activeFilter=button.dataset.filter;document.querySelectorAll('.filter').forEach(item=>item.classList.toggle('selected',item===button));renderSignals()}));
@@ -236,3 +250,4 @@ $('#refresh').addEventListener('click',async()=>{await load();if(selectedSignal)
 window.addEventListener('resize',()=>{overviewChart?.chart.applyOptions({width:$('#chart').clientWidth});detailChart?.chart.applyOptions({width:$('#detail-chart').clientWidth})});
 lucide.createIcons();
 load();
+setInterval(refreshLiveData,60000);

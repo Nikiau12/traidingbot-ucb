@@ -31,7 +31,7 @@ from core.config import (
     SMART_SPIKE_MIN_SCORE, SMART_SPIKE_MIN_QUOTE_VOLUME,
     MEXC_LISTING_SNAPSHOT_FILE, MEXC_ANNOUNCEMENTS_SNAPSHOT_FILE,
     MEXC_LISTING_CHECK_INTERVAL, MEXC_NEW_LISTINGS_URL,
-    FREE_TRIAL_SIGNALS, PAID_ACCESS_HOURS,
+    FREE_TRIAL_SIGNALS, FREE_TRIAL_COOLDOWN_MINUTES, PAID_ACCESS_HOURS,
     USDT_PAYMENT_ADDRESS, USDT_PAYMENT_AMOUNT, USDT_PAYMENT_NETWORK,
     ACCESS_STATE_FILE, USER_REGISTRY_FILE, TRONGRID_API_KEY, MINI_APP_URL,
 )
@@ -62,12 +62,15 @@ router = Router()
 SPIKE_COOLDOWN = 4 * 3600
 SETUP_COOLDOWN = 8 * 3600
 SCAN_REFERENCE_DEPOSIT = 1000.0
+MAJOR_SCAN_SYMBOLS = ["BTC_USDT", "ETH_USDT", "SOL_USDT"]
+MAJOR_SCAN_MIN_CONFIDENCE = float(os.getenv("MAJOR_SCAN_MIN_CONFIDENCE", "0.50"))
 ENGLISH_START_MESSAGE = (
     "👋 Welcome to <b>UCB_TRADING_BOT</b>\n\n"
     "I scan MEXC Futures 24/7, find high-probability setups and instantly calculate "
     "your exact entry, stop-loss, two take-profits and position size — "
     "all calibrated to your deposit and risk tolerance.\n\n"
-    f"🎁 <b>You get {FREE_TRIAL_SIGNALS} free signals</b> right now — no payment needed.\n\n"
+    f"🎁 <b>You get {FREE_TRIAL_SIGNALS} free signals</b> — "
+    f"one signal every {FREE_TRIAL_COOLDOWN_MINUTES} minutes, no payment needed.\n\n"
     "💰 <b>One step to start</b>\n"
     "Send your trading deposit as a number so I can size positions correctly.\n\n"
     "Example: <code>5000</code>"
@@ -157,6 +160,10 @@ def _trial_notice(chat_id, remaining: int) -> str:
     return base
 
 
+def _format_wait_minutes(seconds: int) -> int:
+    return max(1, int((seconds + 59) // 60))
+
+
 notifier = Notifier(
     bot_instance,
     active_users,
@@ -224,6 +231,35 @@ def norm_sym(s: str) -> str:
     return s
 
 
+def _scan_symbols(symbols: list[str]) -> list[str]:
+    seen = set()
+    ordered = []
+    for symbol in [*MAJOR_SCAN_SYMBOLS, *symbols]:
+        normalized = norm_sym(str(symbol))
+        if normalized in seen or not _is_usdt_pair(normalized):
+            continue
+        seen.add(normalized)
+        ordered.append(normalized)
+    return ordered
+
+
+def _is_major_symbol(symbol: str) -> bool:
+    return norm_sym(symbol) in MAJOR_SCAN_SYMBOLS
+
+
+def _is_actionable_plan(plan: dict) -> bool:
+    symbol = plan.get("symbol", "")
+    if plan.get("side") == "skip" or not _is_usdt_pair(symbol) or _is_junk_symbol(symbol):
+        return False
+    min_conf = MAJOR_SCAN_MIN_CONFIDENCE if _is_major_symbol(symbol) else SCAN_CFG["min_confidence"]
+    return _conf(plan) >= min_conf
+
+
+def _rank_actionable_plans(plans: list[dict]) -> list[dict]:
+    actionable = [plan for plan in plans if _is_actionable_plan(plan)]
+    return sorted(actionable, key=lambda p: (0 if _is_major_symbol(p.get("symbol", "")) else 1, -_conf(p)))
+
+
 def _parse_plan_request(text: str, settings: dict):
     parts = (text or "").split()[1:]
     if not parts:
@@ -260,6 +296,13 @@ async def require_access(message: types.Message) -> bool:
             remaining = access_manager.status(chat_id)["trial_left"]
             await message.reply(_trial_notice(chat_id, remaining), parse_mode="HTML")
         return True
+    if mode == "cooldown":
+        wait = access_manager.status(chat_id)["trial_cooldown_left"]
+        await message.reply(
+            _t(get_lang(message.from_user.id), "trial_cooldown", minutes=_format_wait_minutes(wait)),
+            parse_mode="HTML",
+        )
+        return False
     await message.reply(_payment_paywall(chat_id), parse_mode="HTML")
     return False
 
@@ -274,6 +317,19 @@ async def require_deposit(message: types.Message) -> bool:
         reply_markup=_deposit_keyboard(lang),
     )
     return False
+
+
+async def _send_plan_and_record(message: types.Message, plan: dict, deposit: float, risk_pct: float, lang: str) -> bool:
+    symbol = plan.get("symbol", "")
+    side = str((plan.get("primary") or {}).get("side", "skip")).upper()
+    if not symbol or side == "SKIP":
+        return False
+    text = render_telegram_plan(plan, deposit=deposit, risk_pct=risk_pct, lang=lang)
+    await message.reply(text, parse_mode="HTML")
+    signal_id = st.save_signal(plan, symbol, side, _conf(plan))
+    if signal_id:
+        st.grant_signal_access(message.from_user.id, signal_id)
+    return True
 
 
 def _access_status_text(chat_id: str, lang: str) -> str:
@@ -542,6 +598,19 @@ async def cmd_spikes(message: types.Message):
 async def cmd_plan(message: types.Message):
     if not await require_deposit(message):
         return
+    chat_id = str(message.chat.id)
+    if not is_admin(chat_id):
+        allowed, mode = access_manager.check_access(chat_id)
+        if not allowed:
+            if mode == "cooldown":
+                wait = access_manager.status(chat_id)["trial_cooldown_left"]
+                await message.reply(
+                    _t(get_lang(message.from_user.id), "trial_cooldown", minutes=_format_wait_minutes(wait)),
+                    parse_mode="HTML",
+                )
+                return
+            await message.reply(_payment_paywall(chat_id), parse_mode="HTML")
+            return
     uid  = message.from_user.id
     lang = get_lang(uid)
     settings = st.get_user_settings(uid)
@@ -551,16 +620,34 @@ async def cmd_plan(message: types.Message):
         await message.reply(_t(lang, "plan_usage"), parse_mode="HTML")
         return
 
-    if not await require_access(message):
-        return
-
     status_msg = await message.reply(_t(lang, "plan_loading", symbol=symbol), parse_mode="HTML")
     try:
         loop     = asyncio.get_event_loop()
         snapshot = await loop.run_in_executor(None, snap.build_snapshot_with_fallback, symbol)
         plan     = core_plan.make_plan(snapshot, deposit=deposit, risk_pct=risk_pct, lev=lev, margin=margin)
+        side = str((plan.get("primary") or {}).get("side", "skip")).upper()
+        if not is_admin(chat_id) and side != "SKIP":
+            allowed, mode = access_manager.consume_signal(chat_id)
+            if not allowed:
+                if mode == "cooldown":
+                    wait = access_manager.status(chat_id)["trial_cooldown_left"]
+                    await status_msg.edit_text(
+                        _t(lang, "trial_cooldown", minutes=_format_wait_minutes(wait)),
+                        parse_mode="HTML",
+                    )
+                    return
+                await status_msg.edit_text(_payment_paywall(chat_id), parse_mode="HTML")
+                return
         text     = render_telegram_plan(plan, deposit=deposit, risk_pct=risk_pct, lang=lang)
         await status_msg.edit_text(text, parse_mode="HTML")
+        if side != "SKIP":
+            signal_id = st.save_signal(plan, symbol, side, _conf(plan))
+            if signal_id:
+                st.grant_signal_access(uid, signal_id)
+            if not is_admin(chat_id):
+                remaining = access_manager.status(chat_id)["trial_left"]
+                if access_manager.status(chat_id)["has_paid_access"] is False:
+                    await message.reply(_trial_notice(chat_id, remaining), parse_mode="HTML")
     except Exception as e:
         await status_msg.edit_text(_t(lang, "plan_error", error=e), parse_mode="HTML")
 
@@ -616,8 +703,20 @@ async def cmd_settings(message: types.Message):
 async def cmd_scan(message: types.Message):
     if not await require_deposit(message):
         return
-    if not await require_access(message):
-        return
+    chat_id = str(message.chat.id)
+    access_mode = "admin"
+    if not is_admin(chat_id):
+        allowed, access_mode = access_manager.check_access(chat_id)
+        if not allowed:
+            if access_mode == "cooldown":
+                wait = access_manager.status(chat_id)["trial_cooldown_left"]
+                await message.reply(
+                    _t(get_lang(message.from_user.id), "trial_cooldown", minutes=_format_wait_minutes(wait)),
+                    parse_mode="HTML",
+                )
+                return
+            await message.reply(_payment_paywall(chat_id), parse_mode="HTML")
+            return
     uid      = message.from_user.id
     lang     = get_lang(uid)
     settings = st.get_user_settings(uid)
@@ -628,7 +727,8 @@ async def cmd_scan(message: types.Message):
     )
     loop = asyncio.get_event_loop()
     try:
-        symbols = await loop.run_in_executor(None, snap.top_symbols_by_volume, SCAN_CFG["top_n_symbols"])
+        top_symbols = await loop.run_in_executor(None, snap.top_symbols_by_volume, SCAN_CFG["top_n_symbols"])
+        symbols = _scan_symbols(top_symbols)
         results = await loop.run_in_executor(
             None,
             lambda: sc.scan_all(
@@ -640,17 +740,35 @@ async def cmd_scan(message: types.Message):
                 workers=SCAN_CFG["workers"],
             ),
         )
-        actionable = [r for r in results if _conf(r) >= SCAN_CFG["min_confidence"] and r.get("side") != "skip"]
+        actionable = _rank_actionable_plans(results)
         if not actionable:
             await status_msg.edit_text(_t(lang, "scan_none"), parse_mode="HTML")
             return
-        await status_msg.edit_text(_t(lang, "scan_done", count=len(actionable)), parse_mode="HTML")
-        for plan in actionable[:5]:
-            text = render_telegram_plan(plan, deposit=deposit, risk_pct=settings["risk_pct"], lang=lang)
-            await message.reply(text, parse_mode="HTML")
+
+        limit = 1 if access_mode == "trial" else 5
+        if access_mode == "trial":
+            allowed, mode = access_manager.consume_signal(chat_id)
+            if not allowed:
+                if mode == "cooldown":
+                    wait = access_manager.status(chat_id)["trial_cooldown_left"]
+                    await status_msg.edit_text(
+                        _t(lang, "trial_cooldown", minutes=_format_wait_minutes(wait)),
+                        parse_mode="HTML",
+                    )
+                    return
+                await status_msg.edit_text(_payment_paywall(chat_id), parse_mode="HTML")
+                return
+        delivered = 0
+        await status_msg.edit_text(_t(lang, "scan_done", count=min(len(actionable), limit)), parse_mode="HTML")
+        for plan in actionable[:limit]:
+            if await _send_plan_and_record(message, plan, deposit, settings["risk_pct"], lang):
+                delivered += 1
             await asyncio.sleep(0.4)
-        if len(actionable) > 5:
-            await message.reply(_t(lang, "scan_more", count=len(actionable) - 5), parse_mode="HTML")
+        if access_mode == "trial":
+            remaining = access_manager.status(chat_id)["trial_left"]
+            await message.reply(_trial_notice(chat_id, remaining), parse_mode="HTML")
+        elif len(actionable) > limit:
+            await message.reply(_t(lang, "scan_more", count=len(actionable) - limit), parse_mode="HTML")
     except Exception as e:
         await status_msg.edit_text(_t(lang, "scan_error", error=e), parse_mode="HTML")
 
@@ -664,14 +782,17 @@ async def cmd_digest(message: types.Message):
     uid      = message.from_user.id
     lang     = get_lang(uid)
     settings = st.get_user_settings(uid)
+    access_status = access_manager.status(str(message.chat.id))
+    detail_limit = 3 if is_admin(str(message.chat.id)) or access_status["has_paid_access"] else 1
     status_msg = await message.reply(_t(lang, "digest_preparing"), parse_mode="HTML")
-    await _run_digest(str(message.chat.id), settings, lang, status_msg=status_msg)
+    await _run_digest(str(message.chat.id), settings, lang, status_msg=status_msg, detail_limit=detail_limit)
 
 
-async def _run_digest(chat_id, settings, lang, *, status_msg=None):
+async def _run_digest(chat_id, settings, lang, *, status_msg=None, detail_limit=3):
     loop = asyncio.get_event_loop()
     try:
-        symbols = await loop.run_in_executor(None, snap.top_symbols_by_volume, SCAN_CFG["top_n_symbols"])
+        top_symbols = await loop.run_in_executor(None, snap.top_symbols_by_volume, SCAN_CFG["top_n_symbols"])
+        symbols = _scan_symbols(top_symbols)
         results = await loop.run_in_executor(
             None,
             lambda: sc.scan_all(
@@ -683,8 +804,9 @@ async def _run_digest(chat_id, settings, lang, *, status_msg=None):
                 workers=SCAN_CFG["workers"],
             ),
         )
-        high    = [r for r in results if _conf(r) >= 0.65 and r.get("side") != "skip"]
-        medium  = [r for r in results if 0.50 <= _conf(r) < 0.65 and r.get("side") != "skip"]
+        ranked = _rank_actionable_plans(results)
+        high    = [r for r in ranked if _conf(r) >= 0.65]
+        medium  = [r for r in ranked if 0.50 <= _conf(r) < 0.65]
         skipped = len(results) - len(high) - len(medium)
         now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
 
@@ -712,9 +834,17 @@ async def _run_digest(chat_id, settings, lang, *, status_msg=None):
         else:
             await bot_instance.send_message(chat_id=chat_id, text=summary, parse_mode="HTML")
 
-        for plan in high[:3]:
+        for plan in high[:detail_limit]:
             full = render_telegram_plan(plan, deposit=settings["deposit"], risk_pct=settings["risk_pct"], lang=lang)
             await bot_instance.send_message(chat_id=chat_id, text=full, parse_mode="HTML")
+            try:
+                user_id = int(chat_id)
+            except (TypeError, ValueError):
+                user_id = 0
+            side = str((plan.get("primary") or {}).get("side", "skip")).upper()
+            signal_id = st.save_signal(plan, plan.get("symbol", ""), side, _conf(plan))
+            if signal_id and user_id:
+                st.grant_signal_access(user_id, signal_id)
             await asyncio.sleep(0.4)
     except Exception as e:
         err = _t(lang, "digest_error", error=e)
@@ -1047,6 +1177,7 @@ async def plan_scanner_loop():
                     symbols = await loop.run_in_executor(
                         None, snap.top_symbols_by_volume, SCAN_CFG["top_n_symbols"]
                     )
+                    symbols = _scan_symbols(symbols)
                     # Используем системный дефолт для автоалёртов (без депозита пользователя)
                     results = await loop.run_in_executor(
                         None,
@@ -1060,15 +1191,11 @@ async def plan_scanner_loop():
                         ),
                     )
                     sent = 0
-                    for plan in results:
+                    for plan in _rank_actionable_plans(results):
                         conf   = _conf(plan)
                         symbol = plan.get("symbol", "")
                         side   = (plan.get("primary") or {}).get("side", "skip")
 
-                        if conf < SCAN_CFG["min_confidence"] or plan.get("side") == "skip":
-                            continue
-                        if not _is_usdt_pair(symbol) or _is_junk_symbol(symbol):
-                            continue
                         if not st.should_send_alert(symbol, side, conf, plan):
                             continue
 

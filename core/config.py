@@ -27,7 +27,7 @@ ADMIN_CHAT_IDS = {
 TIMEFRAMES = ["15m", "1h", "4h", "1d", "1w"]
 
 # Core Target Pairs (Единый источник правды)
-TARGET_COINS = ["BTC"]
+TARGET_COINS = ["BTC", "ETH", "SOL"]
 
 # How many top coins by volume to track for SMC main strategy
 TOP_COINS_LIMIT = 50
@@ -50,6 +50,7 @@ MEXC_NEW_LISTINGS_URL = os.getenv("MEXC_NEW_LISTINGS_URL", "https://www.mexc.com
 
 # Payments / access control
 FREE_TRIAL_SIGNALS = int(os.getenv("FREE_TRIAL_SIGNALS", "5"))
+FREE_TRIAL_COOLDOWN_MINUTES = int(os.getenv("FREE_TRIAL_COOLDOWN_MINUTES", "30"))
 PAID_ACCESS_DAYS = int(os.getenv("SUBSCRIPTION_DAYS", "30"))
 PAID_ACCESS_HOURS = PAID_ACCESS_DAYS * 24
 USDT_PAYMENT_ADDRESS = os.getenv("USDT_PAYMENT_ADDRESS", "TBkS2PU1STndH6hsRGCHT2CE2ZyUDfsZ1c")

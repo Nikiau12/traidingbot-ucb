@@ -78,6 +78,8 @@ class Notifier:
             if gated and self.access_manager and str(chat_id) not in ADMIN_CHAT_IDS:
                 allowed, mode = self.access_manager.consume_signal(str(chat_id))
                 if not allowed:
+                    if mode == "cooldown":
+                        return False
                     if self.access_manager.should_send_paywall(str(chat_id)):
                         await self.bot.send_message(
                             chat_id=chat_id,

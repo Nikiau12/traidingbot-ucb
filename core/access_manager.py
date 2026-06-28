@@ -26,6 +26,7 @@ class AccessManager:
         self.payment_amount = payment_amount
         self.payment_network = payment_network
         self.database_url = os.getenv("DATABASE_URL", "")
+        self.trial_cooldown_seconds = int(os.getenv("FREE_TRIAL_COOLDOWN_MINUTES", "30")) * 60
 
     def ensure_user(self, chat_id: str):
         state = self._load()
@@ -33,11 +34,23 @@ class AccessManager:
         user.setdefault("trial_used", 0)
         user.setdefault("paid_until", 0)
         user.setdefault("paywall_sent", False)
+        user.setdefault("last_trial_signal_at", 0)
         self._save(state)
 
     def can_receive(self, chat_id: str) -> bool:
+        allowed, _ = self.check_access(chat_id)
+        return allowed
+
+    def check_access(self, chat_id: str) -> Tuple[bool, str]:
         user = self._user(self._load(), chat_id)
-        return self._has_paid_access(user) or user.get("trial_used", 0) < self.free_trial_signals
+        if self._has_paid_access(user):
+            return True, "paid"
+        if user.get("trial_used", 0) >= self.free_trial_signals:
+            return False, "paywall"
+        wait = self._trial_wait_seconds(user)
+        if wait > 0:
+            return False, "cooldown"
+        return True, "trial"
 
     def consume_signal(self, chat_id: str) -> Tuple[bool, str]:
         state = self._load()
@@ -48,8 +61,14 @@ class AccessManager:
             return True, "paid"
 
         trial_used = user.get("trial_used", 0)
+        wait = self._trial_wait_seconds(user)
+        if wait > 0:
+            self._save(state)
+            return False, "cooldown"
+
         if trial_used < self.free_trial_signals:
             user["trial_used"] = trial_used + 1
+            user["last_trial_signal_at"] = int(time.time())
             user["paywall_sent"] = False
             self._save(state)
             return True, "trial"
@@ -127,6 +146,8 @@ class AccessManager:
             "paid_until": paid_until,
             "has_paid_access": paid_until > time.time(),
             "payment_claim": user.get("last_payment_claim"),
+            "trial_available_at": user.get("last_trial_signal_at", 0) + self.trial_cooldown_seconds,
+            "trial_cooldown_left": self._trial_wait_seconds(user),
         }
 
     def format_paywall(self) -> str:
@@ -223,3 +244,13 @@ class AccessManager:
 
     def _has_paid_access(self, user: Dict) -> bool:
         return user.get("paid_until", 0) > time.time()
+
+    def _trial_wait_seconds(self, user: Dict) -> int:
+        if user.get("trial_used", 0) <= 0:
+            return 0
+        if user.get("trial_used", 0) >= self.free_trial_signals:
+            return 0
+        last = int(user.get("last_trial_signal_at", 0) or 0)
+        if last <= 0:
+            return 0
+        return max(0, last + self.trial_cooldown_seconds - int(time.time()))
